@@ -1,0 +1,150 @@
+═══════════════════════════════════════════════════════════════════════════════
+  🚀 GLOBAL MAILER - DEPLOYMENT CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+POUŽITIE: Zakrížkuj [✓] každú úlohu po dokončení
+
+
+PRE-DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Firebase CLI nainštalované (firebase --version)
+[ ] Node.js v18+ nainštalované (node --version)
+[ ] Projekt stiahnutý/otvorený v /Users/steffi/global-mailer
+
+
+DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] cd /Users/steffi/global-mailer
+[ ] firebase login (prihlásenie cez browser)
+[ ] firebase use (overiť: global-email-script)
+[ ] firebase deploy (alebo firebase deploy --only hosting,functions,firestore)
+[ ] Deployment úspešný (✔ Deploy complete!)
+[ ] Hosting URL skopírovaná: https://global-email-script.web.app
+
+
+POST-DEPLOYMENT SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+KROK 1: Vytvor používateľa
+[ ] Otvor: https://console.firebase.google.com/project/global-email-script
+[ ] Build → Authentication → Add user
+[ ] Email: __________________ Password: __________________
+[ ] Používateľ vytvorený
+
+KROK 2: Prihlás sa
+[ ] Otvor: https://global-email-script.web.app
+[ ] Login s vytvorenými credentials
+[ ] Dashboard sa zobrazuje
+
+KROK 3: Gmail App Password
+[ ] Otvor: https://myaccount.google.com/security
+[ ] Zapni 2-Step Verification
+[ ] App passwords → Other → "Global Mailer"
+[ ] App Password skopírované: ____________________________________
+
+KROK 4: Nastav SMTP
+[ ] Settings tab v aplikácii
+[ ] Host: smtp.gmail.com
+[ ] Port: 587
+[ ] User: tvoj.email@gmail.com
+[ ] Password: [Gmail App Password z KROK 3]
+[ ] From: tvoj.email@gmail.com
+[ ] Subjects (3-5 riadkov):
+    [ ] Subject 1: _______________________________________
+    [ ] Subject 2: _______________________________________
+    [ ] Subject 3: _______________________________________
+[ ] Email Body napísaný (použi {{name}} pre personalizáciu)
+[ ] "Uložiť nastavenia" kliknuté
+[ ] Zelený success message viditeľný
+
+KROK 5: Pridaj kontakty
+[ ] Dashboard → "Pridať kontakt" ALEBO "Import CSV"
+[ ] Minimálne 1 kontakt pridaný
+[ ] Kontakt viditeľný v tabuľke
+[ ] Status: "Čaká" (žltý badge)
+
+
+VERIFIKÁCIA (Po 30-60 minútach)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Dashboard: "Odoslané dnes" > 0
+[ ] Kontakt má status "Odoslané" (zelený badge)
+[ ] "Sent date" je vyplnený
+[ ] "Chyby dnes" = 0
+[ ] Email dorazil na cieľový inbox (skontroluj)
+
+
+MONITOROVANIE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] Real-time logs: firebase functions:log -f
+[ ] CLI monitor: ./monitor.sh --watch
+[ ] Firebase Console Functions logs skontrolované
+[ ] Žiadne errors v logoch
+
+
+BACKUP (Odporúčané týždenne)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] ./backup-firestore.sh spustené
+[ ] Backup uložený v backups/
+
+
+TESTING (Voliteľné)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] ./test-smtp.sh spustené
+[ ] Test email doručený
+[ ] CSV import testovaný (sample-contacts.csv)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  TROUBLESHOOTING - RÝCHLE RIEŠENIA
+═══════════════════════════════════════════════════════════════════════════════
+
+PROBLÉM                          RIEŠENIE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Permission denied               firebase login --reauth
+Blaze plan required             Firebase Console → Upgrade → Blaze plan
+SMTP auth failed                Použi Gmail App Password (NIE hlavné heslo)
+Scheduler nebeží                Skontroluj: working hours (7-21h), daily limit
+Firebase not defined            Skontroluj firebaseConfig v public/js/app.js
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  POZNÁMKY / ISSUES
+═══════════════════════════════════════════════════════════════════════════════
+
+Dátum: ___________  Čas: ___________
+
+Issue 1: ________________________________________________________________
+
+Riešenie: _______________________________________________________________
+
+________________________________________________________________________
+
+
+Issue 2: ________________________________________________________________
+
+Riešenie: _______________________________________________________________
+
+________________________________________________________________________
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ DEPLOYMENT ÚSPEŠNÝ!
+
+Hosting URL: https://global-email-script.web.app
+Firebase Console: https://console.firebase.google.com/project/global-email-script
+
+Dátum deployment: ___________  Čas: ___________
+
+Poznámky:
+________________________________________________________________________
+________________________________________________________________________
+________________________________________________________________________
+
+═══════════════════════════════════════════════════════════════════════════════

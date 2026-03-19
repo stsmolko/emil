@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "setup": "cd functions && npm install",
+    "dev": "firebase emulators:start",
+    "build": "cd functions && npm run build",
+    "deploy": "firebase deploy",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:firestore": "firebase deploy --only firestore:rules",
+    "logs": "firebase functions:log",
+    "serve": "firebase serve"
+  }
+}

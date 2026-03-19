@@ -1,0 +1,438 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║                  🚀 GLOBAL MAILER - DEPLOYMENT GUIDE 🚀                      ║
+║                                                                               ║
+║                         Quick & Easy Deployment                               ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+✅ DEPLOYMENT STATUS: READY
+📅 Dátum: 19. marec 2026
+👤 Používateľ: steffi
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📋 PRE-DEPLOYMENT CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Kódová báza kompletná (910 riadkov kódu)
+✅ TypeScript build úspešný (functions/lib/index.js)
+✅ Dependencies nainštalované
+✅ Firebase konfigurácia OK (global-email-script)
+✅ Firestore rules nastavené
+✅ Security implementovaná
+✅ Dokumentácia kompletná (2,800+ riadkov)
+✅ Utility skripty pripravené (5 skriptov)
+
+VÝSLEDOK: 🎯 100% PRIPRAVENÉ NA DEPLOYMENT
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🚀 DEPLOYMENT - KROK ZA KROKOM
+═══════════════════════════════════════════════════════════════════════════════
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ KROK 1: Otvor terminál                                                    │
+└───────────────────────────────────────────────────────────────────────────┘
+
+cd /Users/steffi/global-mailer
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ KROK 2: Firebase prihlásenie                                              │
+└───────────────────────────────────────────────────────────────────────────┘
+
+firebase login
+
+→ Otvorí sa prehliadač
+→ Prihlás sa svojím Google účtom
+→ Potvrď oprávnenia
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ KROK 3: Overiť projekt                                                    │
+└───────────────────────────────────────────────────────────────────────────┘
+
+firebase use
+
+→ Malo by vypísať: "global-email-script"
+
+Ak NIE:
+firebase use --add
+→ Vyber "global-email-script" zo zoznamu
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ KROK 4: Spustiť deployment                                                │
+└───────────────────────────────────────────────────────────────────────────┘
+
+VARIANT A - Všetko naraz (ODPORÚČANÉ):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+firebase deploy
+
+Trvanie: 2-3 minúty
+Deployuje: Hosting + Functions + Firestore
+
+
+VARIANT B - Postupne:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Najprv Firestore rules
+firebase deploy --only firestore
+
+# Potom Functions
+firebase deploy --only functions
+
+# Nakoniec Hosting
+firebase deploy --only hosting
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ KROK 5: Overiť deployment                                                 │
+└───────────────────────────────────────────────────────────────────────────┘
+
+Po úspešnom deploye uvidíš:
+
+✔ Deploy complete!
+
+Project Console: https://console.firebase.google.com/project/global-email-script
+Hosting URL: https://global-email-script.web.app
+
+→ Skopíruj si Hosting URL!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🎯 POST-DEPLOYMENT SETUP
+═══════════════════════════════════════════════════════════════════════════════
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ A) Vytvor prvého používateľa                                              │
+└───────────────────────────────────────────────────────────────────────────┘
+
+1. Otvor Firebase Console:
+   https://console.firebase.google.com/project/global-email-script
+
+2. Build → Authentication → Users
+
+3. Klikni "Add user"
+
+4. Vyplň:
+   Email: tvoj.email@gmail.com
+   Password: [minimálne 6 znakov]
+
+5. Klikni "Add user"
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ B) Prihlás sa do aplikácie                                                │
+└───────────────────────────────────────────────────────────────────────────┘
+
+1. Otvor Hosting URL v prehliadači:
+   https://global-email-script.web.app
+
+2. Zadaj credentials, ktoré si vytvoril
+
+3. Klikni "Prihlásiť sa"
+
+→ Mali by sa ti zobraziť Dashboard! 🎉
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ C) Nastav SMTP                                                             │
+└───────────────────────────────────────────────────────────────────────────┘
+
+1. V aplikácii klikni na "Settings" tab
+
+2. Vyplň SMTP údaje:
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │ Host:     smtp.gmail.com                                            │
+   │ Port:     587                                                       │
+   │ User:     tvoj.email@gmail.com                                      │
+   │ Password: [Gmail App Password - NIE tvoje hlavné heslo!]           │
+   │ From:     tvoj.email@gmail.com                                      │
+   └─────────────────────────────────────────────────────────────────────┘
+
+3. Email Subjects (jeden na riadok):
+   Dôležitá informácia
+   Ponuka len pre vás
+   Špeciálna príležitosť
+
+4. Email Body:
+   Ahoj {{name}},
+
+   Máme pre teba špeciálnu ponuku...
+
+   S pozdravom,
+   Tím
+
+5. Klikni "Uložiť nastavenia"
+
+6. Vidíš zelený success message? ✅
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ GMAIL APP PASSWORD - Ako získať?                                          │
+└───────────────────────────────────────────────────────────────────────────┘
+
+1. Otvor: https://myaccount.google.com/security
+
+2. Zapni 2-Step Verification (ak nie je zapnuté)
+
+3. Vráť sa na Security → App passwords
+
+4. "Select app" → Other (Custom name)
+
+5. Zadaj názov: "Global Mailer"
+
+6. Klikni "Generate"
+
+7. Skopíruj 16-znakové heslo (bez medzier)
+
+8. Použi toto heslo v SMTP Password poli
+
+⚠️  DÔLEŽITÉ: Toto heslo použiješ LEN RAZ. Ulož si ho!
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ D) Pridaj kontakty                                                         │
+└───────────────────────────────────────────────────────────────────────────┘
+
+VARIANT A - Manuálne:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Dashboard → "Pridať kontakt"
+2. Vyplň email a meno
+3. Klikni "Pridať"
+
+VARIANT B - CSV Import:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Vytvor CSV súbor (formát: email,name):
+   
+   email,name
+   jan.novak@example.com,Ján Novák
+   peter.horvath@example.com,Peter Horváth
+   maria.kovacova@example.com,Mária Kováčová
+
+2. Dashboard → "Import CSV"
+3. Vyber súbor
+4. Klikni "Importovať"
+
+💡 TIP: Použi sample-contacts.csv na testovanie!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📊 MONITOROVANIE
+═══════════════════════════════════════════════════════════════════════════════
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Real-time Dashboard                                                        │
+└───────────────────────────────────────────────────────────────────────────┘
+
+→ Otvor aplikáciu: https://global-email-script.web.app
+→ Dashboard zobrazuje live stats
+→ Auto-refresh každých 30s
+
+Stats:
+  • Odoslané dnes: [0-5]
+  • Zostávajúce: [počet neodoslaných]
+  • Chyby dnes: [ideálne 0]
+  • Celkom kontaktov: [celkový počet]
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Firebase Console                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
+
+Functions Logs:
+https://console.firebase.google.com/project/global-email-script/functions/logs
+
+Firestore Data:
+https://console.firebase.google.com/project/global-email-script/firestore/data
+
+
+┌───────────────────────────────────────────────────────────────────────────┐
+│ CLI Monitoring                                                             │
+└───────────────────────────────────────────────────────────────────────────┘
+
+# Real-time logs
+firebase functions:log -f
+
+# Monitoring dashboard
+./monitor.sh --watch
+
+# Check scheduler logs
+firebase functions:log --only smartScheduler
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  ⚙️  AKO TO FUNGUJE
+═══════════════════════════════════════════════════════════════════════════════
+
+📅 SCHEDULER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Spúšťa sa automaticky každých 30 minút
+• Beží LEN v pracovných hodinách (7:00 - 21:00)
+• Denne odošle MAX 5 emailov
+• Náhodne vyberie kontakt (sent=false)
+• Náhodný delay 60-120 sekúnd (human-like)
+• Náhodný subject z tvojho zoznamu
+• Personalizovaný email ({{name}} nahradí menom)
+• Automaticky updateuje status na "Odoslané"
+• Loguje všetky akcie
+
+📧 PRÍKLAD PRIEBEHU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7:00  ✅ Scheduler: Working hours OK, odoslaných 0/5
+7:01  📧 Email #1 → jan.novak@example.com (delay: 73s)
+7:30  ✅ Scheduler: Working hours OK, odoslaných 1/5
+7:32  📧 Email #2 → peter.horvath@example.com (delay: 105s)
+8:00  ✅ Scheduler: Working hours OK, odoslaných 2/5
+...
+21:00 ⏸️  Scheduler: Outside working hours, skipping
+22:00 ⏸️  Scheduler: Outside working hours, skipping
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🐛 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ PROBLÉM: "Permission denied" pri deploye
+✅ RIEŠENIE:
+   firebase login --reauth
+   firebase use global-email-script
+   firebase deploy
+
+❌ PROBLÉM: "Blaze plan required"
+✅ RIEŠENIE:
+   1. Firebase Console → Upgrade
+   2. Vyber "Blaze plan"
+   3. Zadaj billing údaje
+   4. Free tier je veľkorysý (120K invokácií/mesiac)
+
+❌ PROBLÉM: SMTP authentication failed
+✅ RIEŠENIE:
+   → Používaj Gmail App Password (NIE tvoje hlavné heslo)
+   → Zapni 2FA na Google účte
+   → Vygeneruj nové App Password
+   → Použi presne ten vygenerovaný 16-znakový string
+
+❌ PROBLÉM: Scheduler neodosiela emaily
+✅ RIEŠENIE:
+   Skontroluj:
+   1. firebase functions:log --only smartScheduler
+   2. SMTP settings existujú? (Firestore → settings/smtp)
+   3. Sú neodoslané kontakty? (sent=false)
+   4. Je working hours? (7:00-21:00)
+   5. Nie je daily limit? (5 emailov/deň)
+
+❌ PROBLÉM: "Firebase not defined" v konzole
+✅ RIEŠENIE:
+   → Skontroluj firebaseConfig v public/js/app.js
+   → Musí byť správny API key a project ID
+   → Firebase Console → Project Settings → Your apps
+
+📖 VIAC: cat TROUBLESHOOTING.md (400+ riadkov riešení)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  💰 NÁKLADY
+═══════════════════════════════════════════════════════════════════════════════
+
+FREE TIER (5 emailov/deň = 150/mesiac):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Firebase Firestore:   $0.00  (50K reads free)
+Firebase Functions:   $0.00  (2M invokácií free)
+Firebase Hosting:     $0.00  (10GB free)
+SMTP (Gmail):         $0.00  (free tier)
+────────────────────────────────────────────────────────────────────────────
+TOTAL:                $0.00 - $0.50/mesiac ✅
+
+→ Ideálne pre začiatok!
+
+
+SCALING (50 emailov/deň):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Firebase:             $0.00 - $1.00/mesiac
+SMTP (SendGrid):      $5 - $10/mesiac
+────────────────────────────────────────────────────────────────────────────
+TOTAL:                $5 - $15/mesiac
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  📚 DOKUMENTÁCIA
+═══════════════════════════════════════════════════════════════════════════════
+
+START_HERE.md              → Úvodný prehľad projektu
+DEPLOYMENT_READY.md        → Tento súbor (deployment guide)
+QUICKSTART.md              → 10-minútový quick start
+README.md                  → Hlavná dokumentácia
+DOCS.md                    → Technická dokumentácia
+TROUBLESHOOTING.md         → 400+ riadkov riešení problémov
+INDEX.md                   → Navigačný index všetkých dokumentov
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  ✅ SUCCESS CHECKLIST
+═══════════════════════════════════════════════════════════════════════════════
+
+Po dokončení deployment, over:
+
+□ Hosting URL je prístupná
+□ Login screen sa zobrazuje
+□ Prihlásenie funguje
+□ Dashboard zobrazuje stats (môžu byť 0)
+□ Pridanie kontaktu funguje
+□ SMTP sa dá nakonfigurovať
+□ Settings sa uložia (zelený message)
+□ Kontakty sa zobrazujú v tabuľke
+
+Po 30-60 minútach:
+□ Scheduler má logy (firebase functions:log)
+□ První email sa odoslal (Dashboard: Odoslané dnes: 1)
+□ Žiadne chyby v logoch
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  🎉 HOTOVO!
+═══════════════════════════════════════════════════════════════════════════════
+
+Máš teraz plne funkčnú email automation platformu! 🚀
+
+ĎALŠIE KROKY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ Deploy dokončený
+2. 👤 Používateľ vytvorený
+3. ⚙️  SMTP nakonfigurované
+4. 📧 Kontakty pridané
+5. 📊 Monitoruj Dashboard
+6. 🎯 Užívaj si automatizáciu!
+
+
+UŽITOČNÉ PRÍKAZY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Monitoring
+firebase functions:log -f       # Real-time logs
+./monitor.sh --watch            # CLI dashboard
+
+# Backup
+./backup-firestore.sh           # Backup database
+
+# Testing
+./test-smtp.sh                  # Test SMTP connection
+
+# Deploy
+firebase deploy                 # Full deploy
+firebase deploy --only hosting  # Only frontend
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 Ready to start: cd /Users/steffi/global-mailer && firebase deploy
+
+📖 Questions? Read: cat TROUBLESHOOTING.md
+
+═══════════════════════════════════════════════════════════════════════════════

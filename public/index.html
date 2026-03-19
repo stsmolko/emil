@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMIL - Efficient Mail & Intelligent Liaison</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#8b5cf6',
+                        light: {
+                            bg: '#f8fafc',
+                            card: '#ffffff',
+                            border: '#e2e8f0',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
+        }
+
+        .loader {
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body class="bg-light-bg text-gray-900 min-h-screen">
+    
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="bg-light-card rounded-2xl shadow-2xl p-8 w-full max-w-md border border-light-border">
+            <div class="text-center mb-8">
+                <div class="gradient-bg w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">EMIL</h1>
+                <p class="text-gray-600">Efficient Mail & Intelligent Liaison</p>
+            </div>
+            
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="loginEmail" required 
+                           class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
+                           placeholder="vas@email.com">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Heslo</label>
+                    <input type="password" id="loginPassword" required 
+                           class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-gray-900"
+                           placeholder="••••••••">
+                </div>
+                <button type="submit" 
+                        class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                    Prihlásiť sa
+                </button>
+            </form>
+            
+            <div id="loginError" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="hidden">
+        <!-- Navigation -->
+        <nav class="bg-light-card border-b border-light-border shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <div class="gradient-bg w-10 h-10 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <span class="ml-3 text-xl text-gray-900">
+                            <span class="font-bold">EMIL</span>
+                            <span class="font-medium"> - Efficient Mail & Intelligent Liaison</span>
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="dashboardTab" class="nav-tab px-4 py-2 text-gray-900 font-medium border-b-2 border-primary">
+                            Prehľad
+                        </button>
+                        <button id="settingsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
+                            Správa
+                        </button>
+                        <button id="logoutBtn" class="ml-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                            Odhlásiť
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Dashboard Section -->
+        <div id="dashboardSection" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Odoslané dnes</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statSentToday">0</p>
+                        </div>
+                        <div class="bg-green-100 p-3 rounded-lg">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Limit: <span id="dailyLimit">5</span>/deň</p>
+                </div>
+
+                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Zostávajúce</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statRemaining">0</p>
+                        </div>
+                        <div class="bg-blue-100 p-3 rounded-lg">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Chyby dnes</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statErrors">0</p>
+                        </div>
+                        <div class="bg-red-100 p-3 rounded-lg">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Celkom kontaktov</p>
+                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statTotal">0</p>
+                        </div>
+                        <div class="bg-purple-100 p-3 rounded-lg">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import & Add Contact -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Nahrať kontakty</h3>
+                    <p class="text-gray-600 text-sm mb-4">Nahrať CSV súbor s kontaktmi (1. stĺpec meno, 2. stĺpec email)</p>
+                    <div class="flex items-center space-x-4">
+                        <input type="file" id="csvFile" accept=".csv" class="hidden">
+                        <label for="csvFile" 
+                               class="flex-1 px-4 py-3 bg-gray-50 border border-light-border rounded-lg text-gray-600 cursor-pointer hover:border-primary hover:bg-gray-100 transition text-center">
+                            Vybrať súbor
+                        </label>
+                        <button id="importBtn" 
+                                class="px-6 py-3 gradient-bg text-white rounded-lg font-semibold hover:opacity-90 transition">
+                            Importovať
+                        </button>
+                    </div>
+                    <p id="csvFileName" class="text-sm text-gray-500 mt-2"></p>
+                </div>
+
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Pridať kontakt</h3>
+                    <p class="text-gray-600 text-sm mb-4">Nahrať kontakt manuálne</p>
+                    <form id="addContactForm" class="space-y-3">
+                        <input type="text" id="contactName" required
+                               class="w-full px-4 py-2 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                               placeholder="Meno">
+                        <input type="email" id="contactEmail" required
+                               class="w-full px-4 py-2 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                               placeholder="Email">
+                        <button type="submit" 
+                                class="w-full px-4 py-3 gradient-bg text-white rounded-lg font-semibold hover:opacity-90 transition">
+                            Pridať kontakt
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Contacts Table -->
+            <div class="bg-light-card rounded-xl border border-light-border overflow-hidden shadow-sm">
+                <div class="p-6 border-b border-light-border flex justify-between items-center">
+                    <h3 class="text-xl font-bold text-gray-900">Kontakty</h3>
+                    <button id="refreshContacts" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition">
+                        Obnoviť
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Meno</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Stav odoslania</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Dátum a čas odoslania</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Zmazať</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTable" class="divide-y divide-light-border">
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                    <div class="loader mx-auto"></div>
+                                    <p class="mt-2">Načítavam...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div id="settingsSection" class="hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="bg-light-card rounded-xl p-8 border border-light-border shadow-sm">
+                <h2 class="text-2xl font-bold text-gray-900 mb-6">Správa - SMTP Konfigurácia</h2>
+                
+                <form id="smtpForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Host</label>
+                            <input type="text" id="smtpHost" required
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="smtp.gmail.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Port</label>
+                            <input type="number" id="smtpPort" required
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="587">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email (User)</label>
+                        <input type="email" id="smtpUser" required
+                               class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                               placeholder="vas@email.com">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Heslo / App Password</label>
+                        <input type="password" id="smtpPass" required
+                               class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                               placeholder="••••••••">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">From (odosielateľ)</label>
+                        <input type="email" id="smtpFrom" required
+                               class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                               placeholder="odosielatel@email.com">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Predmety emailov (jeden na riadok)</label>
+                        <textarea id="emailSubjects" rows="4"
+                                  class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                  placeholder="Dôležitá informácia&#10;Ponuka len pre vás&#10;Špeciálna príležitosť"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Telo emailu ({{name}} = meno)</label>
+                        <textarea id="emailBody" rows="6"
+                                  class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                  placeholder="Ahoj {{name}},&#10;&#10;Máme pre teba špeciálnu ponuku..."></textarea>
+                    </div>
+
+                    <button type="submit" 
+                            class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                        Uložiť nastavenia
+                    </button>
+                </form>
+
+                <div id="settingsSuccess" class="hidden mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                    Nastavenia úspešne uložené!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
