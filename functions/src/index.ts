@@ -56,22 +56,16 @@ const getTodayDateString = (): string => {
 const getRandomSubject = async (): Promise<string> => {
   try {
     const settingsDoc = await db.collection("settings").doc("email").get();
-    const subjects = settingsDoc.data()?.subjects || [
-      "Dôležitá informácia",
-      "Ponuka len pre vás",
-      "Nesmeš to zmeškať",
-      "Špeciálna príležitosť",
-      "Posledná šanca",
-      "Exkluzívna ponuka pre Vás",
-      "Máme pre Vás novinku",
-      "Špeciálny bonus čaká",
-      "Len dnes: Výhodná ponuka",
-      "Toto sa oplatí vidieť",
-    ];
+    
+    if (!settingsDoc.exists || !settingsDoc.data()?.subjects || settingsDoc.data()?.subjects.length === 0) {
+      throw new Error("Predmety emailov nie sú nastavené. Prosím, nastavte ich v sekcii Správa.");
+    }
+    
+    const subjects = settingsDoc.data()!.subjects;
     return subjects[Math.floor(Math.random() * subjects.length)];
   } catch (error) {
     console.error("Error fetching subjects:", error);
-    return "Ponuka pre vás";
+    throw error;
   }
 };
 
@@ -202,11 +196,11 @@ export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone
     },
   });
 
-  const subject = await getRandomSubject();
-  const emailBody = settingsDoc.data()?.emailBody ||
-    `Ahoj ${contactData.name},\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
-
   try {
+    const subject = await getRandomSubject();
+    const emailBody = settingsDoc.data()?.emailBody ||
+      `Ahoj ${contactData.name},\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
+
     await transporter.sendMail({
       from: smtpSettings.from,
       to: contactData.email,
