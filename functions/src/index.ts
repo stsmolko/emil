@@ -1,5 +1,4 @@
-import {onSchedule} from "firebase-functions/v2/scheduler";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
@@ -27,7 +26,7 @@ interface EmailStats {
   lastResetDate: string;
 }
 
-const DAILY_LIMIT = 5;
+const DAILY_LIMIT = 10;
 const WORKING_HOURS_START = 7;
 const WORKING_HOURS_END = 21;
 
@@ -38,6 +37,14 @@ const getRandomDelay = (): number => {
 const isWorkingHours = (): boolean => {
   const now = new Date();
   const hour = now.getHours();
+  const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  
+  // Skip Sunday (0)
+  if (day === 0) {
+    return false;
+  }
+  
+  // Check working hours (7:00 - 21:00) for Monday-Saturday
   return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END;
 };
 
@@ -95,11 +102,20 @@ const updateStats = async (success: boolean, error?: string) => {
   });
 };
 
-export const smartScheduler = onSchedule("every 30 minutes", async () => {
+export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone("Europe/Bratislava").onRun(async () => {
   console.log("Smart Scheduler triggered");
 
+  // Check if campaign is active
+  const campaignDoc = await db.collection("settings").doc("campaign").get();
+  const campaignActive = campaignDoc.exists && campaignDoc.data()?.active === true;
+  
+  if (!campaignActive) {
+    console.log("Campaign is not active. Waiting for user to start campaign.");
+    return;
+  }
+
   if (!isWorkingHours()) {
-    console.log("Outside working hours (7:00-21:00). Skipping.");
+    console.log("Outside working hours (Mon-Sat, 7:00-21:00). Skipping.");
     return;
   }
 
@@ -108,15 +124,36 @@ export const smartScheduler = onSchedule("every 30 minutes", async () => {
   const statsDoc = await statsRef.get();
 
   let sentToday = 0;
+  let dailyTarget = 0;
+
   if (statsDoc.exists) {
     const data = statsDoc.data() as EmailStats;
     if (data.lastResetDate === today) {
       sentToday = data.sentToday;
+      dailyTarget = (data as any).dailyTarget || Math.floor(Math.random() * 10) + 1;
+    } else {
+      // New day - set random target between 1-10
+      dailyTarget = Math.floor(Math.random() * 10) + 1;
+      await statsRef.set({
+        sentToday: 0,
+        lastResetDate: today,
+        dailyTarget
+      });
+      console.log(`New day! Random target set to ${dailyTarget} emails`);
     }
+  } else {
+    // First run - set random target
+    dailyTarget = Math.floor(Math.random() * 10) + 1;
+    await statsRef.set({
+      sentToday: 0,
+      lastResetDate: today,
+      dailyTarget
+    });
+    console.log(`First run! Random target set to ${dailyTarget} emails`);
   }
 
-  if (sentToday >= DAILY_LIMIT) {
-    console.log(`Daily limit reached (${DAILY_LIMIT}). Skipping.`);
+  if (sentToday >= dailyTarget) {
+    console.log(`Daily target reached (${sentToday}/${dailyTarget}). Skipping.`);
     return;
   }
 
@@ -190,9 +227,9 @@ export const smartScheduler = onSchedule("every 30 minutes", async () => {
   }
 });
 
-export const getStats = onCall(async (request) => {
-  if (!request.auth) {
-    throw new HttpsError(
+export const getDashboardStats = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
       "unauthenticated",
       "User must be authenticated"
     );
@@ -229,5 +266,59 @@ export const getStats = onCall(async (request) => {
     errorsToday,
     totalContacts,
     dailyLimit: DAILY_LIMIT,
+  };
+});
+
+// Toggle campaign on/off
+export const toggleCampaign = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated"
+    );
+  }
+
+  const action = data.action; // 'start' or 'stop'
+  
+  if (action !== 'start' && action !== 'stop') {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Action must be 'start' or 'stop'"
+    );
+  }
+
+  const active = action === 'start';
+  
+  // Update campaign status
+  await db.collection("settings").doc("campaign").set({
+    active: active,
+    lastModified: admin.firestore.FieldValue.serverTimestamp(),
+    modifiedBy: context.auth.uid,
+  }, { merge: true });
+
+  console.log(`Campaign ${active ? 'started' : 'stopped'} by user ${context.auth.uid}`);
+
+  return {
+    success: true,
+    active: active,
+    message: active ? "Kampaň spustená! Emaily sa začnú odosielať automaticky." : "Kampaň zastavená. Žiadne emaily sa nebudú odosielať.",
+  };
+});
+
+// Get campaign status
+export const getCampaignStatus = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "User must be authenticated"
+    );
+  }
+
+  const campaignDoc = await db.collection("settings").doc("campaign").get();
+  const active = campaignDoc.exists && campaignDoc.data()?.active === true;
+
+  return {
+    active: active,
+    lastModified: campaignDoc.exists ? campaignDoc.data()?.lastModified : null,
   };
 });

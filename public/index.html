@@ -146,7 +146,7 @@
                             </svg>
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Limit: <span id="dailyLimit">5</span>/deň</p>
+                    <p class="text-xs text-gray-500 mt-2">Limit: <span id="dailyLimit">10</span>/deň</p>
                 </div>
 
                 <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
@@ -187,6 +187,97 @@
                             <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                             </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Campaign Control -->
+            <div class="mb-8">
+                <div id="campaignControl" class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <div class="text-white">
+                            <h3 class="text-lg font-semibold mb-2">Kontrola kampane</h3>
+                            <p class="text-indigo-100 text-sm">Spustite alebo zastavte automatické rozosielanie emailov</p>
+                            <p class="text-indigo-200 text-xs mt-1">Scheduler: každú hodinu (Po-So, 7:00-21:00)</p>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <div id="campaignStatus" class="text-right mr-4">
+                                <p class="text-white font-semibold text-sm">Status:</p>
+                                <p id="campaignStatusText" class="text-yellow-300 text-xs font-bold">⏸️ POZASTAVENÁ</p>
+                            </div>
+                            <button id="startCampaignBtn" class="px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition transform hover:scale-105 shadow-md flex items-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <span>Začať kampaň</span>
+                            </button>
+                            <button id="stopCampaignBtn" class="hidden px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition transform hover:scale-105 shadow-md flex items-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+                                </svg>
+                                <span>Zastaviť kampaň</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="campaignMessage" class="hidden mt-4 p-3 rounded-lg text-sm bg-white/20 text-white"></div>
+                </div>
+            </div>
+
+            <!-- Total Stats & Chart -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Total Emails Sent -->
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Celkom odoslaných emailov</p>
+                            <p class="text-xs text-gray-500 mt-1">Od začiatku používania systému</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-indigo-100 to-purple-100 p-3 rounded-lg">
+                            <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline space-x-3">
+                        <p class="text-5xl font-bold text-gray-900" id="totalEmailsSent">0</p>
+                        <p class="text-lg text-gray-500">emailov</p>
+                    </div>
+                </div>
+
+                <!-- 7-Day Chart -->
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
+                    <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide mb-4">Posledných 7 dní</p>
+                    <div class="flex items-end justify-between h-32 space-x-2">
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day0"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day0Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day1"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day1Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day2"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day2Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day3"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day3Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day4"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day4Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day5"></div>
+                            <span class="text-gray-500 text-xs mt-2" id="day5Label">-</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-end">
+                            <div class="w-full bg-gradient-to-t from-indigo-600 to-purple-600 rounded-t transition-all duration-500 shadow-lg" style="height: 0%" id="day6"></div>
+                            <span class="text-gray-900 text-xs mt-2 font-semibold" id="day6Label">Dnes</span>
                         </div>
                     </div>
                 </div>
@@ -269,13 +360,13 @@
                 <form id="smtpForm" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Host</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">SMTP vášho hostingu</label>
                             <input type="text" id="smtpHost" required
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                    placeholder="smtp.gmail.com">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Port</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Port vášho hostingu</label>
                             <input type="number" id="smtpPort" required
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                    placeholder="587">
@@ -283,38 +374,34 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email (User)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Váš email</label>
                         <input type="email" id="smtpUser" required
                                class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                placeholder="vas@email.com">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Heslo / App Password</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Heslo k emailu</label>
                         <input type="password" id="smtpPass" required
                                class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                placeholder="••••••••">
+                        <p class="text-xs text-gray-500 mt-1">Pre Gmail/Outlook použite App Password, pre zvyšok providerov použite vaše bežné heslo</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">From (odosielateľ)</label>
-                        <input type="email" id="smtpFrom" required
-                               class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
-                               placeholder="odosielatel@email.com">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Predmety emailov (jeden na riadok)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Predmety emailov (jeden riadok = jeden predmet)</label>
                         <textarea id="emailSubjects" rows="4"
                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                   placeholder="Dôležitá informácia&#10;Ponuka len pre vás&#10;Špeciálna príležitosť"></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Systém náhodne strieda predmety pri odosielaní. Odporúčame 3-7 rôznych predmetov.</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Telo emailu ({{name}} = meno)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Telo emailu</label>
                         <textarea id="emailBody" rows="6"
                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                   placeholder="Ahoj {{name}},&#10;&#10;Máme pre teba špeciálnu ponuku..."></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Použite {{name}} pre automatické vloženie mena kontaktu do emailu</p>
                     </div>
 
                     <button type="submit" 

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "🔍 Checking Cloud Build Status..."
+echo ""
+echo "Opening Cloud Build logs in browser..."
+echo ""
+echo "Latest build:"
+echo "https://console.cloud.google.com/cloud-build/builds;region=us-central1?project=868325182303"
+echo ""
+echo "Press any key to continue..."
+read -n 1
+
+echo ""
+echo "Common issues and fixes:"
+echo ""
+echo "1. ❌ BILLING NOT ENABLED"
+echo "   Solution: Enable billing in Google Cloud Console"
+echo "   https://console.cloud.google.com/billing/linkedaccount?project=868325182303"
+echo ""
+echo "2. ❌ CLOUD BUILD API QUOTA EXCEEDED"
+echo "   Solution: Wait or request quota increase"
+echo ""
+echo "3. ❌ NPM INSTALL FAILS IN CLOUD BUILD"
+echo "   Solution: Simplify dependencies or use pre-built bundle"
+echo ""
+echo "Check the build logs to see which error you have."
+echo ""
