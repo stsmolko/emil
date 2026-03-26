@@ -522,6 +522,12 @@ smtpForm.addEventListener('submit', async (e) => {
         .map(s => s.trim());
     const emailBody = document.getElementById('emailBody').value;
     
+    // Validate subjects
+    if (subjects.length === 0) {
+        alert('⚠️ Musíte zadať aspoň 1 predmet emailu!\n\nOdporúčame 3-10 rôznych predmetov pre lepšiu variabilitu.');
+        return;
+    }
+    
     try {
         await setDoc(doc(db, 'settings', 'smtp'), {
             host,
@@ -536,6 +542,7 @@ smtpForm.addEventListener('submit', async (e) => {
             emailBody
         });
         
+        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Počet predmetov: ${subjects.length}</small>`;
         settingsSuccess.classList.remove('hidden');
         setTimeout(() => {
             settingsSuccess.classList.add('hidden');
