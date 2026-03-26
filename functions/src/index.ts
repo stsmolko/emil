@@ -62,6 +62,11 @@ const getRandomSubject = async (): Promise<string> => {
       "Nesmeš to zmeškať",
       "Špeciálna príležitosť",
       "Posledná šanca",
+      "Exkluzívna ponuka pre Vás",
+      "Máme pre Vás novinku",
+      "Špeciálny bonus čaká",
+      "Len dnes: Výhodná ponuka",
+      "Toto sa oplatí vidieť",
     ];
     return subjects[Math.floor(Math.random() * subjects.length)];
   } catch (error) {
