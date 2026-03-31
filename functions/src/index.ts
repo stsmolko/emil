@@ -24,11 +24,13 @@ interface SmtpSettings {
 interface EmailStats {
   sentToday: number;
   lastResetDate: string;
+  lastEmailSentAt?: admin.firestore.Timestamp;
 }
 
 const DAILY_LIMIT = 10;
 const WORKING_HOURS_START = 7;
 const WORKING_HOURS_END = 21;
+const MIN_EMAIL_INTERVAL_MINUTES = 30; // Minimum 30 minutes between emails
 
 const getRandomDelay = (): number => {
   return Math.floor(Math.random() * 120000) + 60000;
@@ -44,6 +46,11 @@ const isWorkingHours = (): boolean => {
     return false;
   }
   
+  // Lunch break: 12:00 - 13:00 (no emails during lunch)
+  if (hour === 12) {
+    return false;
+  }
+  
   // Check working hours (7:00 - 21:00) for Monday-Saturday
   return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END;
 };
@@ -51,6 +58,26 @@ const isWorkingHours = (): boolean => {
 const getTodayDateString = (): string => {
   const today = new Date();
   return today.toISOString().split("T")[0];
+};
+
+// Spintax parser - generates random variations from {option1|option2|option3} format
+const parseSpintax = (text: string): string => {
+  // Recursive function to process nested spintax
+  const processSpintax = (input: string): string => {
+    const regex = /\{([^{}]*)\}/;
+    let match = input.match(regex);
+    
+    while (match) {
+      const options = match[1].split('|');
+      const randomOption = options[Math.floor(Math.random() * options.length)];
+      input = input.replace(match[0], randomOption);
+      match = input.match(regex);
+    }
+    
+    return input;
+  };
+  
+  return processSpintax(text);
 };
 
 const getRandomSubject = async (): Promise<string> => {
@@ -62,7 +89,10 @@ const getRandomSubject = async (): Promise<string> => {
     }
     
     const subjects = settingsDoc.data()!.subjects;
-    return subjects[Math.floor(Math.random() * subjects.length)];
+    const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
+    
+    // Apply spintax parsing to create variations
+    return parseSpintax(randomSubject);
   } catch (error) {
     console.error("Error fetching subjects:", error);
     throw error;
@@ -101,7 +131,7 @@ const updateStats = async (success: boolean, error?: string) => {
   });
 };
 
-export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone("Europe/Bratislava").onRun(async () => {
+export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZone("Europe/Bratislava").onRun(async () => {
   console.log("Smart Scheduler triggered");
 
   // Check if campaign is active
@@ -114,7 +144,7 @@ export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone
   }
 
   if (!isWorkingHours()) {
-    console.log("Outside working hours (Mon-Sat, 7:00-21:00). Skipping.");
+    console.log("Outside working hours (Mon-Sat, 7:00-21:00, lunch break 12:00-13:00). Skipping.");
     return;
   }
 
@@ -124,12 +154,14 @@ export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone
 
   let sentToday = 0;
   let dailyTarget = 0;
+  let lastEmailSentAt: admin.firestore.Timestamp | null = null;
 
   if (statsDoc.exists) {
     const data = statsDoc.data() as EmailStats;
     if (data.lastResetDate === today) {
       sentToday = data.sentToday;
       dailyTarget = (data as any).dailyTarget || Math.floor(Math.random() * 10) + 1;
+      lastEmailSentAt = data.lastEmailSentAt || null;
     } else {
       // New day - set random target between 1-10
       dailyTarget = Math.floor(Math.random() * 10) + 1;
@@ -154,6 +186,24 @@ export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone
   if (sentToday >= dailyTarget) {
     console.log(`Daily target reached (${sentToday}/${dailyTarget}). Skipping.`);
     return;
+  }
+
+  // Check minimum interval between emails (30 minutes)
+  if (lastEmailSentAt) {
+    const now = admin.firestore.Timestamp.now();
+    const minutesSinceLastEmail = (now.toMillis() - lastEmailSentAt.toMillis()) / 1000 / 60;
+    
+    if (minutesSinceLastEmail < MIN_EMAIL_INTERVAL_MINUTES) {
+      console.log(`Too soon! Only ${Math.floor(minutesSinceLastEmail)} minutes since last email. Need ${MIN_EMAIL_INTERVAL_MINUTES} minutes minimum.`);
+      return;
+    }
+    
+    // Add randomness: even if 30 minutes passed, only 60% chance to send
+    // This creates more natural, unpredictable timing
+    if (Math.random() > 0.6) {
+      console.log(`Random skip - waiting longer for more natural timing (${Math.floor(minutesSinceLastEmail)} min since last email)`);
+      return;
+    }
   }
 
   const contactsSnapshot = await db
@@ -198,21 +248,33 @@ export const mailScheduler = functions.pubsub.schedule("every 1 hours").timeZone
 
   try {
     const subject = await getRandomSubject();
-    const emailBody = settingsDoc.data()?.emailBody ||
-      `Ahoj ${contactData.name},\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
+    let emailBody = settingsDoc.data()?.emailBody ||
+      `Ahoj {{name}},\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
+    
+    // Apply spintax to email body
+    emailBody = parseSpintax(emailBody);
+    
+    // Replace {{name}} placeholder with actual name
+    const textBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
+    const htmlBody = `<p>${emailBody.replace(/\{\{name\}\}/g, contactData.name).replace(/\n/g, "<br>")}</p>`;
 
     await transporter.sendMail({
       from: smtpSettings.from,
       to: contactData.email,
       subject: subject,
-      text: emailBody.replace("{{name}}", contactData.name),
-      html: `<p>${emailBody.replace("{{name}}", contactData.name).replace(/\n/g, "<br>")}</p>`,
+      text: textBody,
+      html: htmlBody,
     });
 
     await randomContact.ref.update({
       sent: true,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       subject: subject,
+    });
+
+    // Update stats with timestamp of last sent email
+    await statsRef.update({
+      lastEmailSentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     await updateStats(true);
