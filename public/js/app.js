@@ -501,6 +501,12 @@ async function loadSettings() {
             if (data.subjects) {
                 document.getElementById('emailSubjects').value = data.subjects.join('\n');
             }
+            if (data.greetings) {
+                document.getElementById('emailGreetings').value = data.greetings.join('\n');
+            }
+            if (data.closings) {
+                document.getElementById('emailClosings').value = data.closings.join('\n');
+            }
             document.getElementById('emailBody').value = data.emailBody || '';
         }
     } catch (error) {
@@ -517,7 +523,15 @@ smtpForm.addEventListener('submit', async (e) => {
     const pass = document.getElementById('smtpPass').value;
     const from = user; // Use the same email as user (avoid spam filters)
     const subjects = document.getElementById('emailSubjects').value
-        .split('\n')
+        .split(/\n\s*\n/)
+        .filter(s => s.trim())
+        .map(s => s.trim());
+    const greetings = document.getElementById('emailGreetings').value
+        .split(/\n\s*\n/)
+        .filter(s => s.trim())
+        .map(s => s.trim());
+    const closings = document.getElementById('emailClosings').value
+        .split(/\n\s*\n/)
         .filter(s => s.trim())
         .map(s => s.trim());
     const emailBody = document.getElementById('emailBody').value;
@@ -539,10 +553,12 @@ smtpForm.addEventListener('submit', async (e) => {
         
         await setDoc(doc(db, 'settings', 'email'), {
             subjects,
+            greetings,
+            closings,
             emailBody
         });
         
-        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Počet predmetov: ${subjects.length}</small>`;
+        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Predmetov: ${subjects.length} | Oslovení: ${greetings.length} | Ukončení: ${closings.length}</small>`;
         settingsSuccess.classList.remove('hidden');
         setTimeout(() => {
             settingsSuccess.classList.add('hidden');

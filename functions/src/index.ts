@@ -36,22 +36,29 @@ const getRandomDelay = (): number => {
   return Math.floor(Math.random() * 120000) + 60000;
 };
 
+const WORKING_HOURS_END_SATURDAY = 18;
+
 const isWorkingHours = (): boolean => {
   const now = new Date();
   const hour = now.getHours();
   const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  
-  // Skip Sunday (0)
+
+  // No emails on Sunday
   if (day === 0) {
     return false;
   }
-  
+
   // Lunch break: 12:00 - 13:00 (no emails during lunch)
   if (hour === 12) {
     return false;
   }
-  
-  // Check working hours (7:00 - 21:00) for Monday-Saturday
+
+  // Saturday: 7:00 - 18:00
+  if (day === 6) {
+    return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END_SATURDAY;
+  }
+
+  // Monday–Friday: 7:00 - 21:00
   return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END;
 };
 
@@ -78,6 +85,22 @@ const parseSpintax = (text: string): string => {
   };
   
   return processSpintax(text);
+};
+
+const getRandomGreeting = (greetings: string[]): string => {
+  if (!greetings || greetings.length === 0) {
+    return "";
+  }
+  const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+  return parseSpintax(randomGreeting);
+};
+
+const getRandomClosing = (closings: string[]): string => {
+  if (!closings || closings.length === 0) {
+    return "";
+  }
+  const randomClosing = closings[Math.floor(Math.random() * closings.length)];
+  return parseSpintax(randomClosing);
 };
 
 const getRandomSubject = async (): Promise<string> => {
@@ -248,15 +271,29 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
 
   try {
     const subject = await getRandomSubject();
-    let emailBody = settingsDoc.data()?.emailBody ||
-      `Ahoj {{name}},\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
-    
+    const emailSettings = await db.collection("settings").doc("email").get();
+    const greetings: string[] = emailSettings.data()?.greetings || [];
+    const greeting = getRandomGreeting(greetings);
+    const closings: string[] = emailSettings.data()?.closings || [];
+    const closing = getRandomClosing(closings);
+
+    let emailBody = emailSettings.data()?.emailBody ||
+      `{{greeting}}\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
+
     // Apply spintax to email body
     emailBody = parseSpintax(emailBody);
-    
-    // Replace {{name}} placeholder with actual name
-    const textBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
-    const htmlBody = `<p>${emailBody.replace(/\{\{name\}\}/g, contactData.name).replace(/\n/g, "<br>")}</p>`;
+
+    // Replace {{name}} placeholder
+    emailBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
+
+    // Auto-prepend greeting and auto-append closing
+    const parts = [
+      ...(greeting ? [greeting] : []),
+      emailBody,
+      ...(closing ? [closing] : []),
+    ];
+    const textBody = parts.join("\n\n");
+    const htmlBody = `<p>${textBody.replace(/\n/g, "<br>")}</p>`;
 
     await transporter.sendMail({
       from: smtpSettings.from,
