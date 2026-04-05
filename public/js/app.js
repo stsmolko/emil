@@ -47,8 +47,10 @@ const logoutBtn = document.getElementById('logoutBtn');
 
 const dashboardTab = document.getElementById('dashboardTab');
 const settingsTab = document.getElementById('settingsTab');
+const radyTab = document.getElementById('radyTab');
 const dashboardSection = document.getElementById('dashboardSection');
 const settingsSection = document.getElementById('settingsSection');
+const radySection = document.getElementById('radySection');
 
 const statSentToday = document.getElementById('statSentToday');
 const statRemaining = document.getElementById('statRemaining');
@@ -244,23 +246,33 @@ settingsTab.addEventListener('click', () => {
     switchTab('settings');
 });
 
+radyTab.addEventListener('click', () => {
+    switchTab('rady');
+});
+
 function switchTab(tab) {
     document.querySelectorAll('.nav-tab').forEach(btn => {
         btn.classList.remove('border-b-2', 'border-primary', 'text-gray-900');
         btn.classList.add('text-gray-500');
     });
-    
+
+    dashboardSection.classList.add('hidden');
+    settingsSection.classList.add('hidden');
+    radySection.classList.add('hidden');
+
     if (tab === 'dashboard') {
         dashboardTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         dashboardTab.classList.remove('text-gray-500');
         dashboardSection.classList.remove('hidden');
-        settingsSection.classList.add('hidden');
         loadDashboard();
     } else if (tab === 'settings') {
         settingsTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         settingsTab.classList.remove('text-gray-500');
-        dashboardSection.classList.add('hidden');
         settingsSection.classList.remove('hidden');
+    } else if (tab === 'rady') {
+        radyTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
+        radyTab.classList.remove('text-gray-500');
+        radySection.classList.remove('hidden');
     }
 }
 
