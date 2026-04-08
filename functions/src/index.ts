@@ -103,6 +103,14 @@ const getRandomClosing = (closings: string[]): string => {
   return parseSpintax(randomClosing);
 };
 
+const getRandomDevice = (devices: string[]): string => {
+  if (!devices || devices.length === 0) {
+    return "";
+  }
+  const randomDevice = devices[Math.floor(Math.random() * devices.length)];
+  return parseSpintax(randomDevice);
+};
+
 const getRandomSubject = async (): Promise<string> => {
   try {
     const settingsDoc = await db.collection("settings").doc("email").get();
@@ -276,6 +284,8 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     const greeting = getRandomGreeting(greetings);
     const closings: string[] = emailSettings.data()?.closings || [];
     const closing = getRandomClosing(closings);
+    const devices: string[] = emailSettings.data()?.devices || [];
+    const device = getRandomDevice(devices);
 
     let emailBody = emailSettings.data()?.emailBody ||
       `{{greeting}}\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
@@ -286,11 +296,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     // Replace {{name}} placeholder
     emailBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
 
-    // Auto-prepend greeting and auto-append closing
+    // Auto-prepend greeting and auto-append closing + device (device can be empty = no signature)
     const parts = [
       ...(greeting ? [greeting] : []),
       emailBody,
       ...(closing ? [closing] : []),
+      ...(device.trim() ? [device] : []),
     ];
     const textBody = parts.join("\n\n");
     const htmlBody = `<p>${textBody.replace(/\n/g, "<br>")}</p>`;

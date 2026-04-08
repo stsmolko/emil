@@ -367,7 +367,12 @@ async function loadContacts() {
         
         onSnapshot(q, (snapshot) => {
             contactsTable.innerHTML = '';
-            
+
+            const total = snapshot.size;
+            const remaining = snapshot.docs.filter(d => !d.data().sent).length;
+            statTotal.textContent = total;
+            statRemaining.textContent = remaining;
+
             if (snapshot.empty) {
                 contactsTable.innerHTML = `
                     <tr>
@@ -517,13 +522,41 @@ async function loadSettings() {
                 document.getElementById('emailGreetings').value = data.greetings.join('\n');
             }
             if (data.closings) {
-                document.getElementById('emailClosings').value = data.closings.join('\n');
+                document.getElementById('emailClosings').value = data.closings.join('\n\n');
+            }
+            if (data.devices) {
+                document.getElementById('emailDevice').value = data.devices.filter(s => s).join('\n\n');
+            } else {
+                document.getElementById('emailDevice').value = [
+                    'Odoslané z iPhone',
+                    'Odoslané z iPhonu',
+                    'Sent from my iPhone',
+                    'Odoslané z iPadu',
+                    'Odoslané z môjho iPhonu cez 5G',
+                    'Odoslané zo Samsungu',
+                    'Odoslané z telefónu Galaxy',
+                    'Odoslané z môjho telefónu Samsung Galaxy',
+                    'Odoslané zo zariadenia Huawei',
+                    'Odoslané zo zariadenia Android',
+                    'Odoslané z mobilu',
+                    'Z mobilu',
+                    'Sent from my mobile',
+                ].join('\n\n');
             }
             document.getElementById('emailBody').value = data.emailBody || '';
         }
     } catch (error) {
         console.error('Error loading settings:', error);
     }
+}
+
+function splitEntries(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return [];
+    if (trimmed.includes('\n\n')) {
+        return trimmed.split(/\n\s*\n/).map(s => s.trim()).filter(s => s);
+    }
+    return trimmed.split('\n').map(s => s.trim()).filter(s => s);
 }
 
 smtpForm.addEventListener('submit', async (e) => {
@@ -534,18 +567,10 @@ smtpForm.addEventListener('submit', async (e) => {
     const user = document.getElementById('smtpUser').value;
     const pass = document.getElementById('smtpPass').value;
     const from = user; // Use the same email as user (avoid spam filters)
-    const subjects = document.getElementById('emailSubjects').value
-        .split(/\n\s*\n/)
-        .filter(s => s.trim())
-        .map(s => s.trim());
-    const greetings = document.getElementById('emailGreetings').value
-        .split(/\n\s*\n/)
-        .filter(s => s.trim())
-        .map(s => s.trim());
-    const closings = document.getElementById('emailClosings').value
-        .split(/\n\s*\n/)
-        .filter(s => s.trim())
-        .map(s => s.trim());
+    const subjects = splitEntries(document.getElementById('emailSubjects').value);
+    const greetings = splitEntries(document.getElementById('emailGreetings').value);
+    const closings = splitEntries(document.getElementById('emailClosings').value);
+    const devices = [...splitEntries(document.getElementById('emailDevice').value), ''];
     const emailBody = document.getElementById('emailBody').value;
     
     // Validate subjects
@@ -567,10 +592,11 @@ smtpForm.addEventListener('submit', async (e) => {
             subjects,
             greetings,
             closings,
+            devices,
             emailBody
         });
         
-        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Predmetov: ${subjects.length} | Oslovení: ${greetings.length} | Ukončení: ${closings.length}</small>`;
+        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Predmetov: ${subjects.length} | Oslovení: ${greetings.length} | Ukončení: ${closings.length} | Zariadení: ${devices.length}</small>`;
         settingsSuccess.classList.remove('hidden');
         setTimeout(() => {
             settingsSuccess.classList.add('hidden');
