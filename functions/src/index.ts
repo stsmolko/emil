@@ -304,14 +304,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       ...(device.trim() ? [device] : []),
     ];
     const textBody = parts.join("\n\n");
-    const htmlBody = `<p>${textBody.replace(/\n/g, "<br>")}</p>`;
 
     await transporter.sendMail({
       from: smtpSettings.from,
       to: contactData.email,
       subject: subject,
       text: textBody,
-      html: htmlBody,
     });
 
     await randomContact.ref.update({
