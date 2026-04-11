@@ -14,6 +14,7 @@ import {
     deleteDoc,
     doc,
     setDoc,
+    writeBatch,
     query,
     where,
     orderBy,
@@ -48,9 +49,11 @@ const logoutBtn = document.getElementById('logoutBtn');
 const dashboardTab = document.getElementById('dashboardTab');
 const settingsTab = document.getElementById('settingsTab');
 const radyTab = document.getElementById('radyTab');
+const blacklistTab = document.getElementById('blacklistTab');
 const dashboardSection = document.getElementById('dashboardSection');
 const settingsSection = document.getElementById('settingsSection');
 const radySection = document.getElementById('radySection');
+const blacklistSection = document.getElementById('blacklistSection');
 
 const statSentToday = document.getElementById('statSentToday');
 const statRemaining = document.getElementById('statRemaining');
@@ -250,7 +253,11 @@ radyTab.addEventListener('click', () => {
     switchTab('rady');
 });
 
-function switchTab(tab) {
+blacklistTab.addEventListener('click', () => {
+    switchTab('blacklist');
+});
+
+window.switchTab = function switchTab(tab) {
     document.querySelectorAll('.nav-tab').forEach(btn => {
         btn.classList.remove('border-b-2', 'border-primary', 'text-gray-900');
         btn.classList.add('text-gray-500');
@@ -259,6 +266,7 @@ function switchTab(tab) {
     dashboardSection.classList.add('hidden');
     settingsSection.classList.add('hidden');
     radySection.classList.add('hidden');
+    blacklistSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
         dashboardTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
@@ -273,6 +281,11 @@ function switchTab(tab) {
         radyTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         radyTab.classList.remove('text-gray-500');
         radySection.classList.remove('hidden');
+    } else if (tab === 'blacklist') {
+        blacklistTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
+        blacklistTab.classList.remove('text-gray-500');
+        blacklistSection.classList.remove('hidden');
+        loadBlacklist();
     }
 }
 
@@ -293,6 +306,9 @@ async function loadDashboard() {
         
         // Load total emails sent
         await loadTotalEmailsSent();
+
+        // Load success rate
+        await loadSuccessRate();
         
         // Load 7-day chart
         await load7DayChart();
@@ -310,6 +326,24 @@ async function loadTotalEmailsSent() {
         document.getElementById('totalEmailsSent').textContent = totalSent;
     } catch (error) {
         console.error('Error loading total emails:', error);
+    }
+}
+
+async function loadSuccessRate() {
+    try {
+        const logsSnap = await getDocs(collection(db, 'email_logs'));
+        const total = logsSnap.size;
+        const successful = logsSnap.docs.filter(d => d.data().success === true).length;
+        const el = document.getElementById('statSuccessRate');
+        if (total === 0) {
+            el.textContent = '—';
+        } else {
+            const pct = Math.round((successful / total) * 100);
+            el.textContent = `${pct}%`;
+            el.className = `text-3xl font-bold mt-2 ${pct >= 90 ? 'text-green-600' : pct >= 70 ? 'text-yellow-600' : 'text-red-600'}`;
+        }
+    } catch (error) {
+        console.error('Error loading success rate:', error);
     }
 }
 
@@ -403,10 +437,18 @@ async function loadContacts() {
                     <td class="px-6 py-4 text-sm">${statusBadge}</td>
                     <td class="px-6 py-4 text-sm text-gray-600">${sentDate}</td>
                     <td class="px-6 py-4 text-sm">
-                        <button onclick="deleteContact('${docSnap.id}')" 
-                                class="text-red-600 hover:text-red-700 font-medium">
-                            Zmazať
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button onclick="blacklistContact('${docSnap.id}', '${contact.email}')"
+                                    title="Pridať na blacklist a odstrániť z fronty"
+                                    class="px-2.5 py-1 text-xs font-medium rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition">
+                                🚫 Blokovať
+                            </button>
+                            <button onclick="deleteContact('${docSnap.id}')"
+                                    title="Odstrániť z fronty"
+                                    class="px-2.5 py-1 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                                Zmazať
+                            </button>
+                        </div>
                     </td>
                 `;
                 contactsTable.appendChild(row);
@@ -430,12 +472,45 @@ window.deleteContact = async (contactId) => {
     }
 };
 
+window.blacklistContact = async (contactId, email) => {
+    if (!confirm(`Pridať ${email} na blacklist a zmazať z kontaktov?`)) return;
+    try {
+        const emailLower = email.toLowerCase().trim();
+        // WriteBatch = atomická operácia — blacklist + zmazanie v jedinom write
+        // Scheduler nemôže stihnúť odoslať email medzi týmito dvoma krokmi
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'blacklist', emailLower), {
+            value: emailLower,
+            type: 'email',
+            reason: 'Manuálne',
+            addedAt: serverTimestamp(),
+        });
+        batch.delete(doc(db, 'contacts', contactId));
+        await batch.commit();
+    } catch (error) {
+        console.error('Blacklist contact error:', error);
+        alert('Chyba pri pridávaní na blacklist.');
+    }
+};
+
 addContactForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('contactName').value;
-    const email = document.getElementById('contactEmail').value;
-    
+    const email = document.getElementById('contactEmail').value.toLowerCase().trim();
+
+    if (isToxicDomain(email)) {
+        alert(`⚠️ Tento email nemožno pridať.\n\n"${email}" patrí k jednorazovým/dočasným emailovým službám. Za takýmito adresami nestojí reálna osoba.`);
+        return;
+    }
+
     try {
+        // Deduplikácia — skontroluj či email už existuje
+        const existing = await getDocs(query(collection(db, 'contacts'), where('email', '==', email)));
+        if (!existing.empty) {
+            alert(`⚠️ Kontakt "${email}" už je v zozname.`);
+            return;
+        }
+
         await addDoc(collection(db, 'contacts'), {
             email,
             name,
@@ -471,21 +546,40 @@ importBtn.addEventListener('click', async () => {
         const text = await file.text();
         const lines = text.split('\n').filter(line => line.trim());
         
+        // Načítaj existujúce emaily pre rýchlu deduplikáciu
+        const existingSnap = await getDocs(collection(db, 'contacts'));
+        const existingEmails = new Set(existingSnap.docs.map(d => (d.data().email || '').toLowerCase().trim()));
+
         let imported = 0;
+        let skippedToxic = 0;
+        let skippedDupe = 0;
         for (let i = 1; i < lines.length; i++) {
             const [name, email] = lines[i].split(',').map(s => s.trim());
             if (email && name) {
+                const emailLower = email.toLowerCase().trim();
+                if (isToxicDomain(emailLower)) {
+                    skippedToxic++;
+                    continue;
+                }
+                if (existingEmails.has(emailLower)) {
+                    skippedDupe++;
+                    continue;
+                }
                 await addDoc(collection(db, 'contacts'), {
-                    email,
+                    email: emailLower,
                     name,
                     sent: false,
                     createdAt: serverTimestamp()
                 });
+                existingEmails.add(emailLower);
                 imported++;
             }
         }
-        
-        alert(`Importovaných ${imported} kontaktov!`);
+
+        const msgs = [`Importovaných ${imported} kontaktov.`];
+        if (skippedDupe > 0) msgs.push(`⚠️ Preskočených ${skippedDupe} duplicitných emailov.`);
+        if (skippedToxic > 0) msgs.push(`🚫 Preskočených ${skippedToxic} jednorazových emailov.`);
+        alert(msgs.join('\n'));
         csvFile.value = '';
         csvFileName.textContent = '';
     } catch (error) {
@@ -610,6 +704,7 @@ smtpForm.addEventListener('submit', async (e) => {
 // ─── Spam Score Checker ───────────────────────────────────────────────────────
 
 const SPAM_WORDS = [
+    // S diakritikou
     'zadarmo', 'akcia', 'zľava', 'zarábajte', 'zarobíte', 'zarobte',
     'investícia', 'cashback', 'výhra', 'vyhraj', 'výherca', 'cena zadarmo',
     'bezplatný', 'bezplatne', 'gratis', 'ušetríte', 'ušetrite',
@@ -626,15 +721,52 @@ const SPAM_WORDS = [
     'zaručený výsledok', 'najlacnejší', 'najlepší na trhu',
     'kliknite sem', 'kliknite tu', 'kupte', 'kúpte',
     'objednajte teraz', 'objednajte hneď', 'zavolajte teraz',
+    // Varianty bez diakritiky (preklepy v spintaxe)
+    'zlava', 'zarabajte', 'zarobite', 'investicia', 'vyhra', 'vyherca',
+    'bezplatny', 'usetrите', 'usетrite', 'surne', 'ihned', 'nezmeškajte',
+    'garantovane', 'garantovany', 'limitovana ponuka', 'posledna sanca',
+    'casovo obmedzene', 'okamzite', 'neodkladajte',
+    'posledna moznost', 'posledne kusy', 'exkluzivna ponuka',
+    'vyuzite hned', 'vyuzite teraz', 'obmedzena dostupnost', 'vypredaj',
+    'zaruceny vysledok', 'najlacnejsi', 'najlepsi na trhu',
+    'kliknite sem', 'kupte', 'objednajte teraz', 'zavolajte teraz',
+    // Anglické
     'free', 'click here', 'buy now', 'limited offer', 'guaranteed',
     'act now', 'winner', 'cash prize', 'no risk', 'order now',
 ];
+
+// NALY'S ANTI-TOXIC ENGINE v1.0
+const VULGAR_LIST = {
+    // HARD: +20 penalizácia — email s týmto slovom by nemal nikdy odísť
+    HARD: [
+        // Slovenské
+        'jebať', 'jebem', 'jebe', 'jebo', 'vyjebať', 'zajebať', 'zjebať', 'pojebať', 'ojebať', 'ojeb',
+        'picsa', 'piča', 'pičovina', 'pičku', 'kurva', 'kurvy', 'kurvin', 'kurvička',
+        'kokot', 'kokotina', 'kokoti', 'chuj', 'chujna', 'zmrd', 'zmrdi', 'hajzel',
+        'vyhoniť', 'honiť', 'buzerant', 'buzerovať',
+        // České
+        'hujovina', 'píča', 'píčovina', 'zkurvit', 'zkurvený', 'vykurvit', 'kunda', 'kundička',
+        'čurák', 'mrdka', 'mrdat', 'retard', 'retardi', 'retardovaný',
+        // Anglické
+        'fuck', 'fucking', 'fucked', 'fucker', 'motherfucker', 'nigger', 'faggot', 'fag',
+        'bitch', 'pussy', 'cunt', 'whore', 'slut', 'cock', 'dickhead', 'asshole',
+    ],
+    // SOFT: +3 penalizácia — neprofesionálne, zhoršuje skóre
+    SOFT: [
+        // Slovenské & České
+        'sračka', 'srať', 'posrať', 'zasrať', 'vyserať', 'hovno', 'hovnivý', 'hovniváč',
+        'debil', 'debilný', 'debilizmus', 'kretén', 'kreténstvo', 'idiot', 'idioti', 'idiotský',
+        'vole', 'vůl', 'prdel', 'odrbať', 'odrb', 'sakra', 'do prdele',
+        // Anglické
+        'shit', 'bullshit', 'crap', 'bastard', 'dumbass', 'jackass',
+    ],
+};
 
 const TECHNICAL_CAPS = [
     'PDF', 'HTML', 'SMTP', 'CSS', 'API', 'URL', 'IT', 'SR', 'ČR',
     'EÚ', 'EU', 'NALY', 'GPS', 'DIČ', 'IČO', 'DPH', 'GDPR', 'SRO',
     'IČ', 'DPH', 'IČ DPH', 'IČDPH', 'SK', 'CZ', 'MBA', 'PhD', 'MSc',
-    'PS',
+    'PS', 'IBAN', 'BIC', 'SWIFT',
 ];
 
 const SPECIAL_SYMBOLS = /[€]{2,}|[$]{2,}|[★▶▷►◄☆✓✔✗✘♦♠♣♥]{1,}|[#]{3,}/g;
@@ -668,6 +800,18 @@ function analyzeText(text, label, subjectForOverlap = null) {
     const warnings = [];
     const good = [];
     let penalty = 0;
+
+    // 0. Vulgárne slová — word boundary regex (\b) aby "hokejka" nespúšťala alert
+    const foundHard = VULGAR_LIST.HARD.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(original));
+    const foundSoft = VULGAR_LIST.SOFT.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(original));
+    if (foundHard.length > 0) {
+        issues.push(`🚨 Vulgárne slová (kritické): <strong>${foundHard.join(', ')}</strong> — email nesmie odísť`);
+        penalty += 20;
+    }
+    if (foundSoft.length > 0) {
+        warnings.push(`Neprofesionálne výrazy: <strong>${foundSoft.join(', ')}</strong> — zvážte preformulovanie`);
+        penalty += 3;
+    }
 
     // 1. Hustota spamových slov
     const totalWords = wordCount(original);
@@ -807,7 +951,28 @@ function analyzeText(text, label, subjectForOverlap = null) {
     warnings.forEach(w => { html += `<p class="text-xs text-yellow-700">⚠️ ${w}</p>`; });
     good.forEach(g    => { html += `<p class="text-xs text-green-700">✅ ${g}</p>`; });
     html += `</div></div>`;
-    return html;
+    return { html, score };
+}
+
+let spamCheckPassed = true;
+
+function updateSaveButton() {
+    const saveBtn = document.querySelector('#smtpForm button[type="submit"]');
+    const existingWarning = document.getElementById('spamSaveWarning');
+    if (existingWarning) existingWarning.remove();
+
+    if (!spamCheckPassed) {
+        saveBtn.disabled = true;
+        saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        const warning = document.createElement('p');
+        warning.id = 'spamSaveWarning';
+        warning.className = 'text-center text-sm text-red-600 font-medium';
+        warning.textContent = '🛑 Email obsahuje zakázané slová. Oprav ho pred uložením.';
+        saveBtn.parentNode.insertBefore(warning, saveBtn);
+    } else {
+        saveBtn.disabled = false;
+        saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
 }
 
 document.getElementById('spamCheckBtn').addEventListener('click', () => {
@@ -820,15 +985,207 @@ document.getElementById('spamCheckBtn').addEventListener('click', () => {
     }
 
     const subjectText = subjects.join(' | ');
-    const subjectHtml = subjectText
+    const subjectResult = subjectText
         ? analyzeText(subjectText, '📋 Predmety emailov')
-        : '<p class="text-xs text-gray-400 px-2">Žiadne predmety na kontrolu.</p>';
+        : { html: '<p class="text-xs text-gray-400 px-2">Žiadne predmety na kontrolu.</p>', score: 10 };
 
-    const bodyHtml = body
+    const bodyResult = body
         ? analyzeText(body, '✉️ Telo emailu', subjectText)
-        : '<p class="text-xs text-gray-400 px-2">Žiadne telo emailu na kontrolu.</p>';
+        : { html: '<p class="text-xs text-gray-400 px-2">Žiadne telo emailu na kontrolu.</p>', score: 10 };
 
-    document.getElementById('spamSubjectResult').innerHTML = subjectHtml;
-    document.getElementById('spamBodyResult').innerHTML = bodyHtml;
+    document.getElementById('spamSubjectResult').innerHTML = subjectResult.html;
+    document.getElementById('spamBodyResult').innerHTML = bodyResult.html;
     document.getElementById('spamResults').classList.remove('hidden');
+
+    // Blokovanie uloženia ak skóre = 0 (HARD slová alebo extrémne spam)
+    spamCheckPassed = subjectResult.score > 0 && bodyResult.score > 0;
+    updateSaveButton();
+});
+
+// ─────────────────────────────────────────────
+// BLACKLIST
+// ─────────────────────────────────────────────
+
+let allBlacklistEntries = [];
+let currentFilter = 'all';
+
+async function loadBlacklist() {
+    const tbody = document.getElementById('blacklistTable');
+    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">
+        <div class="loader mx-auto"></div><p class="mt-2">Načítavam...</p></td></tr>`;
+
+    try {
+        const snap = await getDocs(query(collection(db, 'blacklist'), orderBy('addedAt', 'desc')));
+        allBlacklistEntries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderBlacklist();
+    } catch (err) {
+        console.error('Blacklist load error:', err);
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500">Chyba pri načítaní blacklistu.</td></tr>`;
+    }
+}
+
+function renderBlacklist() {
+    const tbody = document.getElementById('blacklistTable');
+    const countEl = document.getElementById('blacklistCount');
+
+    let entries = allBlacklistEntries;
+    if (currentFilter === 'email') {
+        entries = entries.filter(e => e.type === 'email');
+    } else if (currentFilter === 'domain') {
+        entries = entries.filter(e => e.type === 'domain');
+    } else if (currentFilter === 'hard_bounce') {
+        entries = entries.filter(e => e.type === 'hard_bounce');
+    }
+
+    countEl.textContent = `(${entries.length})`;
+
+    if (entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400 text-sm">
+            Žiadne záznamy v tejto kategórii.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = entries.map(e => {
+        const date = e.addedAt ? new Date(e.addedAt.seconds * 1000).toLocaleDateString('sk-SK') : '—';
+        const typeBadge = e.type === 'hard_bounce'
+            ? '<span class="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded-full">Neplatná adresa</span>'
+            : e.type === 'domain'
+                ? '<span class="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-full">Doména</span>'
+                : '<span class="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">Email</span>';
+        return `
+        <tr class="hover:bg-gray-50 transition">
+            <td class="px-6 py-3 text-sm font-medium text-gray-900">${e.value}</td>
+            <td class="px-6 py-3">${typeBadge}</td>
+            <td class="px-6 py-3 text-sm text-gray-600">${e.reason || '—'}</td>
+            <td class="px-6 py-3 text-sm text-gray-500">${date}</td>
+            <td class="px-6 py-3">
+                <button onclick="deleteBlacklistEntry('${e.id}')"
+                    class="text-red-500 hover:text-red-700 text-xs font-medium transition">
+                    Zmazať
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+window.filterBlacklist = function(type) {
+    currentFilter = type;
+
+    document.querySelectorAll('.blacklist-filter').forEach(btn => {
+        btn.classList.remove('bg-primary', 'text-white');
+        btn.classList.add('bg-gray-100', 'text-gray-600');
+    });
+    const activeBtn = document.getElementById(
+        type === 'all' ? 'filterAll' :
+        type === 'email' ? 'filterEmail' :
+        type === 'domain' ? 'filterDomain' : 'filterBounce'
+    );
+    if (activeBtn) {
+        activeBtn.classList.add('bg-primary', 'text-white');
+        activeBtn.classList.remove('bg-gray-100', 'text-gray-600');
+    }
+
+    renderBlacklist();
+};
+
+window.deleteBlacklistEntry = async function(id) {
+    if (!confirm('Naozaj chceš odstrániť tento záznam z blacklistu?')) return;
+    try {
+        await deleteDoc(doc(db, 'blacklist', id));
+        allBlacklistEntries = allBlacklistEntries.filter(e => e.id !== id);
+        renderBlacklist();
+    } catch (err) {
+        console.error('Delete blacklist error:', err);
+        alert('Chyba pri mazaní záznamu.');
+    }
+};
+
+// Jednorazové/dočasné emaily — nikdy za nimi nestojí reálna osoba
+const TOXIC_DOMAINS = [
+    'mailinator.com', '10minutemail.com', 'guerrillamail.com', 'temp-mail.org',
+    'trashmail.com', 'sharklasers.com', 'getairmail.com', 'yopmail.com',
+    'dispostable.com', 'spam4.me', 'maildrop.cc', 'mail-tester.com',
+    'throwam.com', 'spamgourmet.com', 'fakeinbox.com', 'mailnull.com',
+    'spamherelots.com', 'trashmail.me', 'tempmail.com', 'throwam.com',
+];
+
+function isToxicDomain(email) {
+    const domain = (email.split('@')[1] || '').toLowerCase().trim();
+    return TOXIC_DOMAINS.includes(domain);
+}
+
+const PROTECTED_DOMAINS = [
+    // Globálni giganti
+    '@gmail.com', '@googlemail.com',
+    '@outlook.com', '@hotmail.com', '@live.com', '@msn.com',
+    '@icloud.com', '@me.com', '@mac.com',
+    '@yahoo.com', '@ymail.com', '@rocketmail.com',
+    '@aol.com', '@aim.com',
+    // Slovenskí poskytovatelia
+    '@zoznam.sk', '@azet.sk', '@centrum.sk', '@atlas.sk',
+    '@pobox.sk', '@post.sk', '@stonline.sk',
+    '@orange.sk', '@telekom.sk', '@upc.sk',
+    // Českí poskytovatelia
+    '@seznam.cz', '@email.cz', '@post.cz', '@volny.cz',
+    '@centrum.cz', '@atlas.cz', '@tiscali.cz', '@quick.cz',
+    // Privacy a iní svetoví hráči
+    '@proton.me', '@protonmail.com', '@pm.me',
+    '@tutanota.com', '@tuta.io', '@tuta.com',
+    '@mail.com', '@email.com',
+    '@gmx.com', '@gmx.net', '@gmx.at', '@gmx.ch',
+    '@fastmail.com', '@fastmail.fm',
+    '@yandex.com', '@yandex.ru',
+];
+
+async function addToBlacklist(value, reason, type) {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) return;
+
+    const isDomain = trimmed.startsWith('@');
+    const entryType = type || (isDomain ? 'domain' : 'email');
+
+    if (isDomain && PROTECTED_DOMAINS.includes(trimmed)) {
+        alert(`⚠️ Túto doménu nemôžeš zablokovať celú!\n\n"${trimmed}" používajú státisíce ľudí. EMIL by nemal komu písať.\n\nAk chceš zablokovať konkrétnu osobu, pridaj jej celý email napr. jan@gmail.com.`);
+        return;
+    }
+
+    const existing = allBlacklistEntries.find(e => e.id === trimmed);
+    if (existing) {
+        alert('Tento záznam je už v blackliste.');
+        return;
+    }
+
+    try {
+        // Doc ID = email alebo @doména → O(1) lookup, žiadne duplicity
+        await setDoc(doc(db, 'blacklist', trimmed), {
+            value: trimmed,
+            type: entryType,
+            reason: reason || 'Manuálne',
+            addedAt: serverTimestamp(),
+        });
+        allBlacklistEntries.unshift({ id: trimmed, value: trimmed, type: entryType, reason: reason || 'Manuálne', addedAt: { seconds: Date.now() / 1000 } });
+        renderBlacklist();
+    } catch (err) {
+        console.error('Add blacklist error:', err);
+        alert('Chyba pri pridávaní záznamu.');
+    }
+}
+
+document.getElementById('blacklistAddBtn').addEventListener('click', async () => {
+    const input = document.getElementById('blacklistInput').value.trim();
+    const reason = document.getElementById('blacklistReason').value.trim() || 'Manuálne';
+    if (!input) {
+        alert('Zadaj email alebo doménu (napr. @firma.sk).');
+        return;
+    }
+    await addToBlacklist(input, reason);
+    document.getElementById('blacklistInput').value = '';
+    document.getElementById('blacklistReason').value = '';
+});
+
+document.getElementById('blacklistInput').addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('blacklistAddBtn').click();
+    }
 });

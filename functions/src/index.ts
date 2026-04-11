@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 
@@ -65,6 +65,28 @@ const isWorkingHours = (): boolean => {
 const getTodayDateString = (): string => {
   const today = new Date();
   return today.toISOString().split("T")[0];
+};
+
+// Backend poistka — HARD vulgárne slová nesmú nikdy odísť
+const HARD_VULGAR_WORDS = [
+  "jebať", "jebem", "jebe", "jebo", "vyjebať", "zajebať", "zjebať", "pojebať", "ojebať",
+  "picsa", "piča", "pičovina", "pičku", "kurva", "kurvy", "kurvin", "kurvička",
+  "kokot", "kokotina", "kokoti", "chuj", "chujna", "zmrd", "zmrdi", "hajzel",
+  "vyhoniť", "buzerant", "buzerovať",
+  "hujovina", "píča", "píčovina", "zkurvit", "zkurvený", "vykurvit", "kunda", "kundička",
+  "čurák", "mrdka", "mrdat", "retard", "retardovaný",
+  "fuck", "fucking", "fucked", "fucker", "motherfucker", "nigger", "faggot",
+  "bitch", "pussy", "cunt", "whore", "slut", "cock", "dickhead", "asshole",
+];
+
+const containsHardVulgar = (text: string): string | null => {
+  const lower = text.toLowerCase();
+  for (const word of HARD_VULGAR_WORDS) {
+    if (new RegExp(`\\b${word}\\b`, "i").test(lower)) {
+      return word;
+    }
+  }
+  return null;
 };
 
 // Spintax parser - generates random variations from {option1|option2|option3} format
@@ -254,6 +276,35 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   ];
   const contactData = randomContact.data() as Contact;
 
+  // Jednorazové/dočasné emaily — blokovať vždy, bez ohľadu na blacklist
+  const TOXIC_DOMAINS = [
+    "mailinator.com", "10minutemail.com", "guerrillamail.com", "temp-mail.org",
+    "trashmail.com", "sharklasers.com", "getairmail.com", "yopmail.com",
+    "dispostable.com", "spam4.me", "maildrop.cc", "mail-tester.com",
+    "throwam.com", "spamgourmet.com", "fakeinbox.com", "mailnull.com",
+  ];
+  const contactDomain = (contactData.email.toLowerCase().split("@")[1] || "");
+  if (TOXIC_DOMAINS.includes(contactDomain)) {
+    console.log(`Toxic domain detected for ${contactData.email}. Skipping permanently.`);
+    await randomContact.ref.update({ sent: true, error: "Toxic domain — jednorazový email" });
+    return;
+  }
+
+  // Fast O(1) blacklist check: doc ID = email alebo @doména
+  const emailLower = contactData.email.toLowerCase();
+  const domainKey = "@" + (emailLower.split("@")[1] || "");
+
+  const [emailBlacklistDoc, domainBlacklistDoc] = await Promise.all([
+    db.collection("blacklist").doc(emailLower).get(),
+    db.collection("blacklist").doc(domainKey).get(),
+  ]);
+
+  if (emailBlacklistDoc.exists || domainBlacklistDoc.exists) {
+    console.log(`Contact ${contactData.email} is blacklisted. Marking and skipping.`);
+    await randomContact.ref.update({ sent: true, error: "Blacklisted" });
+    return;
+  }
+
   const settingsDoc = await db.collection("settings").doc("smtp").get();
   if (!settingsDoc.exists) {
     console.error("SMTP settings not configured");
@@ -296,6 +347,16 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     // Replace {{name}} placeholder
     emailBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
 
+    // Backend poistka — HARD vulgárne slová nesmú nikdy odísť
+    const vulgarInSubject = containsHardVulgar(subject);
+    const vulgarInBody = containsHardVulgar(emailBody);
+    if (vulgarInSubject || vulgarInBody) {
+      const where = vulgarInSubject ? `predmet (${vulgarInSubject})` : `telo (${vulgarInBody})`;
+      console.error(`BLOCKED: Email obsahuje zakázané slovo v ${where}. Email sa neodošle.`);
+      await updateStats(false, `Blocked — zakázané slovo: ${vulgarInSubject || vulgarInBody}`);
+      return;
+    }
+
     // Auto-prepend greeting and auto-append closing + device (device can be empty = no signature)
     const parts = [
       ...(greeting ? [greeting] : []),
@@ -327,9 +388,81 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     console.log(`Email sent successfully to ${contactData.email}`);
   } catch (error: any) {
     console.error("Error sending email:", error);
-    await randomContact.ref.update({
-      error: error.message,
-    });
+
+    // Hard bounce detection — SMTP 5xx permanent failures → auto-blacklist
+    const HARD_BOUNCE_CODES = [550, 551, 553, 554, 521, 541];
+    const responseCode = error.responseCode || (error.response ? parseInt(error.response.substring(0, 3)) : 0);
+    const isHardBounce = HARD_BOUNCE_CODES.includes(responseCode);
+
+    if (isHardBounce) {
+      console.log(`Hard bounce detected for ${contactData.email} (code ${responseCode}). Auto-blacklisting.`);
+      try {
+        const emailLowerBounce = contactData.email.toLowerCase();
+        await db.collection("blacklist").doc(emailLowerBounce).set({
+          value: emailLowerBounce,
+          type: "hard_bounce",
+          reason: `Hard bounce (SMTP ${responseCode}): ${error.message}`,
+          addedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        // Mark contact so it won't be retried
+        await randomContact.ref.update({
+          sent: true,
+          error: `Hard bounce — blacklisted (${responseCode})`,
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (blErr) {
+        console.error("Failed to auto-blacklist:", blErr);
+      }
+    } else {
+      // Soft bounce — plná schránka, dočasný výpadok → počítaj pokusy s časovým filtrom
+      const SOFT_BOUNCE_LIMIT = 3;
+      const MIN_DAYS_SPAN = 3; // bouncy musia byť aspoň 72h (3 dni) od prvého pokusu
+      const contactSnap = randomContact.data() as any;
+      const currentCount: number = contactSnap.softBounceCount || 0;
+      const firstBounceAt: admin.firestore.Timestamp | null = contactSnap.firstSoftBounceAt || null;
+      const now = admin.firestore.Timestamp.now();
+      const newCount = currentCount + 1;
+
+      // Vypočítaj koľko hodín uplynulo od prvého soft bounce
+      const hoursSinceFirst = firstBounceAt
+        ? (now.toMillis() - firstBounceAt.toMillis()) / 1000 / 3600
+        : 0;
+      const spansMultipleDays = hoursSinceFirst >= 24 * MIN_DAYS_SPAN;
+
+      const shouldBlacklist = newCount >= SOFT_BOUNCE_LIMIT && spansMultipleDays;
+
+      if (shouldBlacklist) {
+        console.log(`Soft bounce limit (${SOFT_BOUNCE_LIMIT}x za ${Math.round(hoursSinceFirst)}h) reached for ${contactData.email}. Auto-blacklisting.`);
+        try {
+          const emailLower = contactData.email.toLowerCase();
+          await db.collection("blacklist").doc(emailLower).set({
+            value: emailLower,
+            type: "hard_bounce",
+            reason: `Soft bounce ${SOFT_BOUNCE_LIMIT}x za ${Math.round(hoursSinceFirst)}h: ${error.message}`,
+            addedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          await randomContact.ref.update({
+            sent: true,
+            error: `Soft bounce limit dosiahnutý (${SOFT_BOUNCE_LIMIT}x / ${Math.round(hoursSinceFirst)}h) — blacklisted`,
+            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+            softBounceCount: newCount,
+          });
+        } catch (blErr) {
+          console.error("Failed to auto-blacklist soft bounce:", blErr);
+        }
+      } else {
+        const reason = newCount >= SOFT_BOUNCE_LIMIT
+          ? `Soft bounce ${newCount}x, ale len ${Math.round(hoursSinceFirst)}h — čakám na potvrdenie cez 24h`
+          : `Soft bounce ${newCount}/${SOFT_BOUNCE_LIMIT}`;
+        console.log(`${reason} for ${contactData.email}. Will retry.`);
+        await randomContact.ref.update({
+          error: error.message,
+          softBounceCount: newCount,
+          firstSoftBounceAt: firstBounceAt || now,
+        });
+      }
+    }
+
     await updateStats(false, error.message);
   }
 });
