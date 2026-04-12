@@ -410,6 +410,13 @@
                                    placeholder="••••••••">
                             <p class="text-xs text-gray-500 mt-1">Pre Gmail/Outlook použite App Password, pre zvyšok providerov použite vaše bežné heslo</p>
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Maximálny počet emailov za deň</label>
+                            <input type="number" id="dailyLimitInput" min="1" max="50" value="10"
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="10">
+                            <p class="text-xs text-gray-500 mt-1">Scheduler každý deň náhodne vyberie číslo od 1 po tento limit. Odporúčame 5–15.</p>
+                        </div>
                     </div>
                 </div>
 
@@ -421,19 +428,19 @@
                     </div>
                     <div class="p-6 space-y-5">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Predmety emailov</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">📋 Predmety emailov</label>
                             <textarea id="emailSubjects" rows="5"
                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                       placeholder="Dôležitá informácia&#10;&#10;Ponuka len pre vás&#10;&#10;{Exkluzívna|Špeciálna|Limitovaná} ponuka"></textarea>
-                            <p class="text-xs text-gray-500 mt-1">Systém náhodne strieda predmety pri odosielaní. Odporúčame 3–10 rôznych predmetov.</p>
+                            <p class="text-xs text-gray-500 mt-1">Systém náhodne strieda predmety pri odosielaní. Odporúčame 3–10 rôznych predmetov. <strong>Medzi variantami musí byť prázdny riadok.</strong></p>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Oslovenia</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">👋 Oslovenia</label>
                             <textarea id="emailGreetings" rows="5"
                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                       placeholder="Ahoj,&#10;&#10;Dobrý deň,&#10;&#10;Zdravím,"></textarea>
-                            <p class="text-xs text-gray-500 mt-1">Systém náhodne vyberie jedno oslovenie pri každom emaili.</p>
+                            <p class="text-xs text-gray-500 mt-1">Systém náhodne vyberie jedno oslovenie pri každom emaili. <strong>Medzi variantami musí byť prázdny riadok.</strong></p>
                         </div>
 
                         <div>
@@ -451,44 +458,76 @@
                                     <h3 class="text-sm font-bold text-gray-800">🔍 Spam Score Checker</h3>
                                     <p class="text-xs text-gray-500 mt-0.5">Skontroluje predmety aj telo emailu pred odoslaním</p>
                                 </div>
-                                <button type="button" id="spamCheckBtn"
-                                        class="px-4 py-2 gradient-bg text-white text-sm font-semibold rounded-lg hover:opacity-90 transition flex-shrink-0">
-                                    Skontrolovať
-                                </button>
+                                <div class="flex gap-2 flex-shrink-0">
+                                    <button type="button" id="previewEmailBtn"
+                                            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
+                                        👁 Náhľad
+                                    </button>
+                                    <button type="button" id="spamCheckBtn"
+                                            class="px-4 py-2 gradient-bg text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                                        Skontrolovať
+                                    </button>
+                                </div>
                             </div>
                             <div id="spamResults" class="hidden space-y-4">
                                 <div id="spamSubjectResult"></div>
                                 <div id="spamBodyResult"></div>
                             </div>
+
+                            <!-- Počítadlo variant -->
+                            <div class="mt-3 pt-3 border-t border-gray-200">
+                                <div class="flex items-center justify-between flex-wrap gap-2">
+                                    <div class="flex items-center gap-3 text-xs text-gray-500">
+                                        <span>📋 Predmety: <span id="liveSubjects">0</span></span>
+                                        <span>·</span>
+                                        <span>👋 Oslovenia: <span id="liveGreetings">0</span></span>
+                                        <span>·</span>
+                                        <span>✌️ Ukončenia: <span id="liveClosings">0</span></span>
+                                        <span>·</span>
+                                        <span>📱 Podpisy: <span id="liveDevices">0</span></span>
+                                    </div>
+                                    <div id="liveVariantBadge" class="text-xs font-bold px-3 py-1 rounded-full">
+                                        ∑ <span id="liveTotal">0</span> variant
+                                    </div>
+                                </div>
+                                <p id="liveVariantMsg" class="text-xs mt-1.5"></p>
+                            </div>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Ukončenia</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">✌️ Ukončenia</label>
                             <textarea id="emailClosings" rows="8"
                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                       placeholder="Ďakujem,&#10;Štefan&#10;&#10;Ďakujem krásne a teším sa na prípadnú spoluprácu,&#10;Štefan Smolko - zabavka.sk&#10;0918 636 970&#10;&#10;S pozdravom,&#10;Štefan"></textarea>
-                            <p class="text-xs text-gray-500 mt-1">Každé ukončenie môže mať viac riadkov (napr. meno, telefón). Viacriadkové ukončenia oddeľte prázdnym riadkom.</p>
+                            <p class="text-xs text-gray-500 mt-1">Každé ukončenie môže mať viac riadkov (napr. meno, telefón). <strong>Medzi variantami musí byť prázdny riadok.</strong></p>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Odoslané z</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">📱 Odoslané z</label>
                             <textarea id="emailDevice" rows="4"
                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                       placeholder="Odoslané z iPhone&#10;Sent from my iPhone&#10;Odoslané z mobilu"></textarea>
-                            <p class="text-xs text-gray-500 mt-1">Pridá sa automaticky na úplný koniec emailu.</p>
+                            <p class="text-xs text-gray-500 mt-1">Pridá sa automaticky na úplný koniec emailu. <strong>Medzi variantami musí byť prázdny riadok.</strong></p>
                         </div>
                     </div>
                 </div>
 
-                <button type="submit"
-                        class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
-                    Uložiť nastavenia
-                </button>
+                <div class="flex gap-3">
+                    <button type="submit" id="saveSettingsBtn"
+                            class="flex-1 gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                        Uložiť nastavenia
+                    </button>
+                    <button type="button" id="testEmailBtn"
+                            class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                        📧 Testovací email
+                    </button>
+                </div>
             </form>
 
             <div id="settingsSuccess" class="hidden mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
                 Nastavenia úspešne uložené!
             </div>
+            <div id="testEmailResult" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
         </div>
 
         <!-- Rady Section -->
@@ -852,6 +891,73 @@
 
         </div>
 
+    </div>
+
+    <!-- Email Preview Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" id="previewBackdrop"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900">👁 Náhľad emailu</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Náhodná kombinácia — každé otvorenie vygeneruje inú variantu</p>
+                </div>
+                <div class="flex gap-2">
+                    <button id="previewRefreshBtn"
+                            class="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition">
+                        🔄 Ďalšia varianta
+                    </button>
+                    <button id="previewCloseBtn"
+                            class="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                        Zavrieť
+                    </button>
+                </div>
+            </div>
+            <!-- Desktop / Mobile toggle -->
+            <div class="flex items-center gap-1 px-6 py-2 border-b border-gray-100 bg-gray-50">
+                <button id="previewDesktopBtn"
+                        class="px-3 py-1 text-xs font-medium rounded-lg bg-gray-900 text-white transition">
+                    🖥 Desktop
+                </button>
+                <button id="previewMobileBtn"
+                        class="px-3 py-1 text-xs font-medium rounded-lg text-gray-500 hover:bg-gray-200 transition">
+                    📱 Mobil
+                </button>
+            </div>
+            <!-- Email meta -->
+            <div class="px-6 py-3 bg-gray-50 border-b border-gray-200 space-y-1">
+                <div class="flex gap-2 text-xs">
+                    <span class="text-gray-500 w-16 flex-shrink-0">Predmet:</span>
+                    <span id="previewSubject" class="font-semibold text-gray-900"></span>
+                </div>
+                <div class="flex gap-2 text-xs">
+                    <span class="text-gray-500 w-16 flex-shrink-0">Komu:</span>
+                    <span class="text-gray-700">jan.novak@firma.sk <em class="text-gray-400">(vzorový príjemca)</em></span>
+                </div>
+            </div>
+            <!-- Email body -->
+            <div id="previewBodyWrap" class="flex-1 overflow-y-auto py-5 transition-all duration-300 px-6">
+                <pre id="previewBody" class="whitespace-pre-wrap font-sans text-sm text-gray-800 leading-relaxed"></pre>
+            </div>
+            <!-- Kombinácie footer -->
+            <div class="px-6 py-3 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-3 text-xs text-gray-500">
+                        <span>📋 <span id="cntSubjects">0</span> predmetov</span>
+                        <span>·</span>
+                        <span>👋 <span id="cntGreetings">0</span> oslovení</span>
+                        <span>·</span>
+                        <span>✌️ <span id="cntClosings">0</span> ukončení</span>
+                        <span>·</span>
+                        <span>📱 <span id="cntDevices">0</span> podpisov</span>
+                    </div>
+                    <div class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                        ∑ <span id="cntTotal">0</span> unikátnych variant
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDK -->

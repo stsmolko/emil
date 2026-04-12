@@ -5,12 +5,26 @@ import * as nodemailer from "nodemailer";
 admin.initializeApp();
 const db = admin.firestore();
 
+const normalizeEmail = (email: string): string => {
+  const lower = email.trim().toLowerCase();
+  const atIdx = lower.lastIndexOf("@");
+  if (atIdx === -1) return lower;
+  const local = lower.slice(0, atIdx);
+  const domain = lower.slice(atIdx + 1);
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return local.replace(/\./g, "") + "@" + domain;
+  }
+  return lower;
+};
+
 interface Contact {
   email: string;
   name: string;
   sent: boolean;
   sentAt?: Date;
   error?: string;
+  handoff?: boolean;
+  handoffAt?: Date;
 }
 
 interface SmtpSettings {
@@ -201,6 +215,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     return;
   }
 
+  // Read user-defined daily limit (default 10 if not set)
+  const smtpConfigDoc = await db.collection("settings").doc("smtp").get();
+  const configuredDailyLimit: number = (smtpConfigDoc.exists && (smtpConfigDoc.data() as any)?.dailyLimit)
+    ? Math.min(50, Math.max(1, Number((smtpConfigDoc.data() as any).dailyLimit)))
+    : 10;
+
   const today = getTodayDateString();
   const statsRef = db.collection("stats").doc("daily");
   const statsDoc = await statsRef.get();
@@ -213,27 +233,28 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     const data = statsDoc.data() as EmailStats;
     if (data.lastResetDate === today) {
       sentToday = data.sentToday;
-      dailyTarget = (data as any).dailyTarget || Math.floor(Math.random() * 10) + 1;
+      // Use saved target for today, or generate new one within configured limit
+      dailyTarget = (data as any).dailyTarget || Math.floor(Math.random() * configuredDailyLimit) + 1;
       lastEmailSentAt = data.lastEmailSentAt || null;
     } else {
-      // New day - set random target between 1-10
-      dailyTarget = Math.floor(Math.random() * 10) + 1;
+      // New day — random target between 1 and user-configured limit
+      dailyTarget = Math.floor(Math.random() * configuredDailyLimit) + 1;
       await statsRef.set({
         sentToday: 0,
         lastResetDate: today,
         dailyTarget
       });
-      console.log(`New day! Random target set to ${dailyTarget} emails`);
+      console.log(`New day! Random target set to ${dailyTarget}/${configuredDailyLimit} emails`);
     }
   } else {
-    // First run - set random target
-    dailyTarget = Math.floor(Math.random() * 10) + 1;
+    // First run
+    dailyTarget = Math.floor(Math.random() * configuredDailyLimit) + 1;
     await statsRef.set({
       sentToday: 0,
       lastResetDate: today,
       dailyTarget
     });
-    console.log(`First run! Random target set to ${dailyTarget} emails`);
+    console.log(`First run! Random target set to ${dailyTarget}/${configuredDailyLimit} emails`);
   }
 
   if (sentToday >= dailyTarget) {
@@ -283,7 +304,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     "dispostable.com", "spam4.me", "maildrop.cc", "mail-tester.com",
     "throwam.com", "spamgourmet.com", "fakeinbox.com", "mailnull.com",
   ];
-  const contactDomain = (contactData.email.toLowerCase().split("@")[1] || "");
+  const contactDomain = (normalizeEmail(contactData.email).split("@")[1] || "");
   if (TOXIC_DOMAINS.includes(contactDomain)) {
     console.log(`Toxic domain detected for ${contactData.email}. Skipping permanently.`);
     await randomContact.ref.update({ sent: true, error: "Toxic domain — jednorazový email" });
@@ -291,7 +312,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   }
 
   // Fast O(1) blacklist check: doc ID = email alebo @doména
-  const emailLower = contactData.email.toLowerCase();
+  const emailLower = normalizeEmail(contactData.email);
   const domainKey = "@" + (emailLower.split("@")[1] || "");
 
   const [emailBlacklistDoc, domainBlacklistDoc] = await Promise.all([
@@ -302,6 +323,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   if (emailBlacklistDoc.exists || domainBlacklistDoc.exists) {
     console.log(`Contact ${contactData.email} is blacklisted. Marking and skipping.`);
     await randomContact.ref.update({ sent: true, error: "Blacklisted" });
+    return;
+  }
+
+  // Human Handoff — kontakt prebratý človekom, automatika sa nezapína
+  if (contactData.handoff === true) {
+    console.log(`Contact ${contactData.email} is in human handoff. Skipping automated send.`);
     return;
   }
 
@@ -358,11 +385,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     }
 
     // Auto-prepend greeting and auto-append closing + device (device can be empty = no signature)
+    // Each part is trimmed so trailing newlines in textarea fields don't create empty space
     const parts = [
-      ...(greeting ? [greeting] : []),
-      emailBody,
-      ...(closing ? [closing] : []),
-      ...(device.trim() ? [device] : []),
+      ...(greeting.trim() ? [greeting.trim()] : []),
+      emailBody.trim(),
+      ...(closing.trim() ? [closing.trim()] : []),
+      ...(device.trim() ? [device.trim()] : []),
     ];
     const textBody = parts.join("\n\n");
 
@@ -397,7 +425,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     if (isHardBounce) {
       console.log(`Hard bounce detected for ${contactData.email} (code ${responseCode}). Auto-blacklisting.`);
       try {
-        const emailLowerBounce = contactData.email.toLowerCase();
+        const emailLowerBounce = normalizeEmail(contactData.email);
         await db.collection("blacklist").doc(emailLowerBounce).set({
           value: emailLowerBounce,
           type: "hard_bounce",
@@ -434,7 +462,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       if (shouldBlacklist) {
         console.log(`Soft bounce limit (${SOFT_BOUNCE_LIMIT}x za ${Math.round(hoursSinceFirst)}h) reached for ${contactData.email}. Auto-blacklisting.`);
         try {
-          const emailLower = contactData.email.toLowerCase();
+          const emailLower = normalizeEmail(contactData.email);
           await db.collection("blacklist").doc(emailLower).set({
             value: emailLower,
             type: "hard_bounce",
@@ -561,4 +589,62 @@ export const getCampaignStatus = functions.https.onCall(async (data, context) =>
     active: active,
     lastModified: campaignDoc.exists ? campaignDoc.data()?.lastModified : null,
   };
+});
+
+// Send test email to the logged-in user's own email address
+export const sendTestEmail = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
+  }
+
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  if (!smtpDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "SMTP nastavenia nie sú nakonfigurované");
+  }
+  const smtp = smtpDoc.data() as SmtpSettings;
+
+  const emailDoc = await db.collection("settings").doc("email").get();
+  if (!emailDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "Email obsah nie je nakonfigurovaný");
+  }
+  const emailSettings = emailDoc.data() as {
+    subjects: string[];
+    greetings: string[];
+    closings: string[];
+    devices: string[];
+    emailBody: string;
+  };
+
+  const subject = parseSpintax(
+    emailSettings.subjects?.[Math.floor(Math.random() * (emailSettings.subjects?.length || 1))] || "Test"
+  );
+  const greeting = getRandomGreeting(emailSettings.greetings || []);
+  const closing = getRandomClosing(emailSettings.closings || []);
+  const device = getRandomDevice(emailSettings.devices || []);
+  const body = parseSpintax(emailSettings.emailBody || "")
+    .replace(/\{\{name\}\}/g, "Ján Novák (test)");
+
+  const parts = [
+    ...(greeting.trim() ? [greeting.trim()] : []),
+    body.trim(),
+    ...(closing.trim() ? [closing.trim()] : []),
+    ...(device.trim() ? [device.trim()] : []),
+  ];
+  const textBody = parts.join("\n\n");
+
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.port === 465,
+    auth: { user: smtp.user, pass: smtp.pass },
+  });
+
+  await transporter.sendMail({
+    from: smtp.from || smtp.user,
+    to: smtp.user,
+    subject: `[TEST] ${subject}`,
+    text: textBody,
+  });
+
+  return { success: true, to: smtp.user };
 });
