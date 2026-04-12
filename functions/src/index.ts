@@ -528,12 +528,18 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     .get();
   const errorsToday = logsSnapshot.size;
 
+  // Read user-configured daily limit from SMTP settings
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  const configuredLimit = (smtpDoc.exists && (smtpDoc.data() as any)?.dailyLimit)
+    ? Math.min(50, Math.max(1, Number((smtpDoc.data() as any).dailyLimit)))
+    : DAILY_LIMIT;
+
   return {
     sentToday,
     remainingContacts,
     errorsToday,
     totalContacts,
-    dailyLimit: DAILY_LIMIT,
+    dailyLimit: configuredLimit,
   };
 });
 

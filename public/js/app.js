@@ -312,9 +312,29 @@ async function loadDashboard() {
         
         // Load 7-day chart
         await load7DayChart();
+
+        // Campaign ETA
+        updateCampaignEta(stats.remainingContacts, stats.dailyLimit);
     } catch (error) {
         console.error('Error loading stats:', error);
     }
+}
+
+function updateCampaignEta(remaining, dailyLimit) {
+    const el = document.getElementById('campaignEta');
+    if (!el) return;
+    const rem = parseInt(remaining) || 0;
+    const lim = parseInt(dailyLimit) || 10;
+    if (rem <= 0) {
+        el.innerHTML = '🏁 Všetky kontakty odoslané';
+        return;
+    }
+    const avgPerDay = Math.max(1, Math.round(lim / 2));
+    const days = Math.ceil(rem / avgPerDay);
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + days);
+    const dateStr = endDate.toLocaleDateString('sk-SK', { day: 'numeric', month: 'long' });
+    el.innerHTML = `📅 Zostatok <strong>${rem}</strong> kontaktov — odhadovaný koniec okolo <strong>${dateStr}</strong> (~${days} dní)`;
 }
 
 async function loadTotalEmailsSent() {
@@ -395,12 +415,95 @@ async function load7DayChart() {
     }
 }
 
+// ─── Contacts filter state ────────────────────────────────────────────────────
+let allContactsCache = [];
+let contactFilterState = 'all';
+let contactSearchState = '';
+
+function renderContacts() {
+    const search = contactSearchState.toLowerCase();
+    const filter = contactFilterState;
+
+    const filtered = allContactsCache.filter(({ contact }) => {
+        const matchSearch = !search ||
+            contact.name.toLowerCase().includes(search) ||
+            contact.email.toLowerCase().includes(search);
+        const matchFilter =
+            filter === 'all' ||
+            (filter === 'waiting'  && !contact.sent && !contact.handoff) ||
+            (filter === 'sent'     && contact.sent && !contact.handoff) ||
+            (filter === 'handoff'  && contact.handoff);
+        return matchSearch && matchFilter;
+    });
+
+    const badge = document.getElementById('contactsCountBadge');
+    badge.textContent = filtered.length < allContactsCache.length
+        ? `(${filtered.length} z ${allContactsCache.length})`
+        : `(${allContactsCache.length})`;
+
+    contactsTable.innerHTML = '';
+    if (filtered.length === 0) {
+        contactsTable.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Žiadne kontakty nezodpovedajú filtru.</td></tr>`;
+        return;
+    }
+
+    filtered.forEach(({ id, contact }) => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50 transition';
+
+        let statusBadge;
+        if (contact.handoff) {
+            statusBadge = '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">✋ Riešim osobne</span>';
+        } else if (contact.sent) {
+            statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Odoslané</span>';
+        } else {
+            statusBadge = '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">Čaká</span>';
+        }
+
+        const sentDate = contact.sentAt
+            ? new Date(contact.sentAt.toDate()).toLocaleString('sk-SK')
+            : '-';
+
+        const handoffBtn = contact.handoff
+            ? `<button onclick="releaseContact('${id}')" title="Vrátiť do automatickej fronty"
+                       class="px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition">
+                   ↩️ Späť do fronty
+               </button>`
+            : `<button onclick="handoffContact('${id}', '${contact.email}')" title="EMIL prestane posielať automatické maily"
+                       class="px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition">
+                   ✋ Riešim osobne
+               </button>`;
+
+        row.innerHTML = `
+            <td class="px-6 py-4 text-sm text-gray-700">${contact.name}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${contact.email}</td>
+            <td class="px-6 py-4 text-sm">${statusBadge}</td>
+            <td class="px-6 py-4 text-sm text-gray-600">${sentDate}</td>
+            <td class="px-6 py-4 text-sm">
+                <div class="flex items-center gap-2">
+                    ${handoffBtn}
+                    <button onclick="blacklistContact('${id}', '${contact.email}')"
+                            title="Pridať na blacklist a odstrániť z fronty"
+                            class="px-2.5 py-1 text-xs font-medium rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition">
+                        🚫 Blokovať
+                    </button>
+                    <button onclick="deleteContact('${id}')"
+                            title="Odstrániť z fronty"
+                            class="px-2.5 py-1 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                        Zmazať
+                    </button>
+                </div>
+            </td>
+        `;
+        contactsTable.appendChild(row);
+    });
+}
+
 async function loadContacts() {
     try {
         const q = query(collection(db, 'contacts'), orderBy('createdAt', 'desc'));
-        
         onSnapshot(q, (snapshot) => {
-            contactsTable.innerHTML = '';
+            allContactsCache = snapshot.docs.map(d => ({ id: d.id, contact: d.data() }));
 
             const total = snapshot.size;
             const remaining = snapshot.docs.filter(d => !d.data().sent).length;
@@ -408,76 +511,37 @@ async function loadContacts() {
             statRemaining.textContent = remaining;
 
             if (snapshot.empty) {
-                contactsTable.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                            Žiadne kontakty. Pridajte nový kontakt alebo importujte CSV.
-                        </td>
-                    </tr>
-                `;
+                contactsTable.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Žiadne kontakty. Pridajte nový kontakt alebo importujte CSV.</td></tr>`;
+                document.getElementById('contactsCountBadge').textContent = '(0)';
+                loadDashboard();
                 return;
             }
-            
-            snapshot.forEach((docSnap) => {
-                const contact = docSnap.data();
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50 transition';
 
-                let statusBadge;
-                if (contact.handoff) {
-                    statusBadge = '<span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">✋ Riešim osobne</span>';
-                } else if (contact.sent) {
-                    statusBadge = '<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Odoslané</span>';
-                } else {
-                    statusBadge = '<span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full font-medium">Čaká</span>';
-                }
-                
-                const sentDate = contact.sentAt 
-                    ? new Date(contact.sentAt.toDate()).toLocaleString('sk-SK')
-                    : '-';
-
-                const handoffBtn = contact.handoff
-                    ? `<button onclick="releaseContact('${docSnap.id}')"
-                               title="Vrátiť do automatickej fronty"
-                               class="px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition">
-                           ↩️ Späť do fronty
-                       </button>`
-                    : `<button onclick="handoffContact('${docSnap.id}', '${contact.email}')"
-                               title="EMIL prestane posielať automatické maily — riešiš to osobne"
-                               class="px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition">
-                           ✋ Riešim osobne
-                       </button>`;
-                
-                row.innerHTML = `
-                    <td class="px-6 py-4 text-sm text-gray-700">${contact.name}</td>
-                    <td class="px-6 py-4 text-sm text-gray-700">${contact.email}</td>
-                    <td class="px-6 py-4 text-sm">${statusBadge}</td>
-                    <td class="px-6 py-4 text-sm text-gray-600">${sentDate}</td>
-                    <td class="px-6 py-4 text-sm">
-                        <div class="flex items-center gap-2">
-                            ${handoffBtn}
-                            <button onclick="blacklistContact('${docSnap.id}', '${contact.email}')"
-                                    title="Pridať na blacklist a odstrániť z fronty"
-                                    class="px-2.5 py-1 text-xs font-medium rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition">
-                                🚫 Blokovať
-                            </button>
-                            <button onclick="deleteContact('${docSnap.id}')"
-                                    title="Odstrániť z fronty"
-                                    class="px-2.5 py-1 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                                Zmazať
-                            </button>
-                        </div>
-                    </td>
-                `;
-                contactsTable.appendChild(row);
-            });
-            
+            renderContacts();
             loadDashboard();
         });
     } catch (error) {
         console.error('Error loading contacts:', error);
     }
 }
+
+// Filter buttons
+document.querySelectorAll('.contact-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.contact-filter-btn').forEach(b => {
+            b.className = 'contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition';
+        });
+        btn.className = 'contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-900 text-white transition';
+        contactFilterState = btn.dataset.filter;
+        renderContacts();
+    });
+});
+
+// Search input
+document.getElementById('contactSearch').addEventListener('input', (e) => {
+    contactSearchState = e.target.value;
+    renderContacts();
+});
 
 window.deleteContact = async (contactId) => {
     if (confirm('Naozaj chcete zmazať tento kontakt?')) {
@@ -579,57 +643,114 @@ csvFile.addEventListener('change', (e) => {
     }
 });
 
+// ─── CSV Preview & Import ─────────────────────────────────────────────────────
+let csvPreviewData = []; // contacts ready to import after preview
+
 importBtn.addEventListener('click', async () => {
     const file = csvFile.files[0];
-    if (!file) {
-        alert('Vyberte CSV súbor');
-        return;
-    }
-    
+    if (!file) { alert('Vyberte CSV súbor'); return; }
+
     try {
         const text = await file.text();
         const lines = text.split('\n').filter(line => line.trim());
-        
-        // Načítaj existujúce emaily pre rýchlu deduplikáciu
+
         const existingSnap = await getDocs(collection(db, 'contacts'));
         const existingEmails = new Set(existingSnap.docs.map(d => normalizeEmail(d.data().email || '')));
 
-        let imported = 0;
-        let skippedToxic = 0;
-        let skippedDupe = 0;
+        csvPreviewData = [];
+        let skippedToxic = 0, skippedDupe = 0, skippedInvalid = 0;
+
         for (let i = 1; i < lines.length; i++) {
-            const [name, email] = lines[i].split(',').map(s => s.trim());
-            if (email && name) {
-                const emailLower = normalizeEmail(email);
-                if (isToxicDomain(emailLower)) {
-                    skippedToxic++;
-                    continue;
-                }
-                if (existingEmails.has(emailLower)) {
-                    skippedDupe++;
-                    continue;
-                }
-                await addDoc(collection(db, 'contacts'), {
-                    email: emailLower,
-                    name,
-                    sent: false,
-                    createdAt: serverTimestamp()
-                });
-                existingEmails.add(emailLower);
-                imported++;
-            }
+            const parts = lines[i].split(',').map(s => s.trim());
+            const name = parts[0], email = parts[1];
+            if (!email || !name) { skippedInvalid++; continue; }
+            const emailNorm = normalizeEmail(email);
+            if (isToxicDomain(emailNorm)) { skippedToxic++; continue; }
+            if (existingEmails.has(emailNorm)) { skippedDupe++; continue; }
+            csvPreviewData.push({ name, email: emailNorm });
+            existingEmails.add(emailNorm); // prevent intra-file dupes
         }
 
-        const msgs = [`Importovaných ${imported} kontaktov.`];
-        if (skippedDupe > 0) msgs.push(`⚠️ Preskočených ${skippedDupe} duplicitných emailov.`);
-        if (skippedToxic > 0) msgs.push(`🚫 Preskočených ${skippedToxic} jednorazových emailov.`);
-        alert(msgs.join('\n'));
+        // Build preview modal content
+        const statsEl = document.getElementById('csvPreviewStats');
+        statsEl.innerHTML = `
+            <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-green-700">${csvPreviewData.length}</p>
+                <p class="text-green-600 text-xs mt-0.5">Nových kontaktov</p>
+            </div>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-gray-500">${skippedDupe}</p>
+                <p class="text-gray-400 text-xs mt-0.5">Duplikátov</p>
+            </div>
+            ${skippedToxic ? `<div class="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-red-500">${skippedToxic}</p>
+                <p class="text-red-400 text-xs mt-0.5">Jednorazových emailov</p>
+            </div>` : ''}
+            ${skippedInvalid ? `<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+                <p class="text-2xl font-bold text-yellow-500">${skippedInvalid}</p>
+                <p class="text-yellow-400 text-xs mt-0.5">Neplatných riadkov</p>
+            </div>` : ''}
+        `;
+
+        const tableEl = document.getElementById('csvPreviewTable');
+        if (csvPreviewData.length > 0) {
+            tableEl.innerHTML = `<table class="w-full">
+                <thead class="bg-gray-50 sticky top-0"><tr>
+                    <th class="px-3 py-2 text-left text-gray-500 font-medium">Meno</th>
+                    <th class="px-3 py-2 text-left text-gray-500 font-medium">Email</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${csvPreviewData.slice(0, 20).map(c => `<tr>
+                        <td class="px-3 py-1.5 text-gray-700">${c.name}</td>
+                        <td class="px-3 py-1.5 text-gray-500">${c.email}</td>
+                    </tr>`).join('')}
+                    ${csvPreviewData.length > 20 ? `<tr><td colspan="2" class="px-3 py-2 text-gray-400 text-center">... a ďalších ${csvPreviewData.length - 20}</td></tr>` : ''}
+                </tbody>
+            </table>`;
+        } else {
+            tableEl.innerHTML = '<p class="px-4 py-6 text-center text-gray-400">Žiadne nové kontakty na import.</p>';
+        }
+
+        document.getElementById('csvPreviewConfirmBtn').disabled = csvPreviewData.length === 0;
+        document.getElementById('csvPreviewModal').classList.remove('hidden');
+
+    } catch (err) {
+        console.error('CSV parse error:', err);
+        alert('Chyba pri čítaní CSV súboru.');
+    }
+});
+
+async function doImport() {
+    document.getElementById('csvPreviewModal').classList.add('hidden');
+    const btn = document.getElementById('csvPreviewConfirmBtn');
+    btn.disabled = true;
+    try {
+        for (const c of csvPreviewData) {
+            await addDoc(collection(db, 'contacts'), {
+                email: c.email, name: c.name,
+                sent: false, createdAt: serverTimestamp()
+            });
+        }
+        alert(`✅ Importovaných ${csvPreviewData.length} kontaktov.`);
+    } catch (err) {
+        console.error('Import error:', err);
+        alert('Chyba pri importe.');
+    } finally {
         csvFile.value = '';
         csvFileName.textContent = '';
-    } catch (error) {
-        console.error('Error importing CSV:', error);
-        alert('Chyba pri importovaní CSV');
+        csvPreviewData = [];
+        btn.disabled = false;
     }
+}
+
+document.getElementById('csvPreviewConfirmBtn').addEventListener('click', doImport);
+document.getElementById('csvPreviewCancelBtn').addEventListener('click', () => {
+    document.getElementById('csvPreviewModal').classList.add('hidden');
+    csvPreviewData = [];
+});
+document.getElementById('csvPreviewBackdrop').addEventListener('click', () => {
+    document.getElementById('csvPreviewModal').classList.add('hidden');
+    csvPreviewData = [];
 });
 
 refreshContacts.addEventListener('click', () => {
