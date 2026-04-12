@@ -9,7 +9,8 @@ import {
     getFirestore, 
     collection, 
     addDoc, 
-    getDocs, 
+    getDocs,
+    getDoc,
     updateDoc,
     deleteDoc,
     doc,
@@ -155,7 +156,12 @@ startCampaignBtn.addEventListener('click', async () => {
         const data = result.data;
         
         updateCampaignUI(true);
-        
+
+        // Reset end-notification flag so it fires again for the new campaign run
+        try {
+            await updateDoc(doc(db, 'settings', 'campaign'), { endNotificationSent: false });
+        } catch (_) { /* ignore if field doesn't exist yet */ }
+
         campaignMessage.className = 'mt-4 p-3 rounded-lg text-sm bg-green-500/90 text-white';
         campaignMessage.innerHTML = `
             <div class="flex items-center space-x-2">
@@ -315,8 +321,49 @@ async function loadDashboard() {
 
         // Campaign ETA
         updateCampaignEta(stats.remainingContacts, stats.dailyLimit);
+
+        // Scheduler health
+        await loadSchedulerHealth();
     } catch (error) {
         console.error('Error loading stats:', error);
+    }
+}
+
+async function loadSchedulerHealth() {
+    const dot = document.getElementById('schedulerHealthDot');
+    const label = document.getElementById('schedulerHealthLabel');
+    if (!dot || !label) return;
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'schedulerHealth'));
+        if (!snap.exists()) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0';
+            label.textContent = 'Ešte nebežal';
+            return;
+        }
+        const lastRun = snap.data().lastRun?.toDate();
+        if (!lastRun) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0';
+            label.textContent = 'Neznáme';
+            return;
+        }
+        const now = new Date();
+        const diffMin = Math.round((now - lastRun) / 60000);
+        const timeStr = lastRun.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
+        const isToday = lastRun.toDateString() === now.toDateString();
+        const dateStr = isToday ? `dnes ${timeStr}` : lastRun.toLocaleDateString('sk-SK', { day: 'numeric', month: 'short' }) + ` ${timeStr}`;
+
+        if (diffMin <= 35) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0';
+            label.textContent = `Posledné spustenie: ${dateStr}`;
+        } else if (diffMin <= 120) {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-yellow-400 flex-shrink-0';
+            label.textContent = `Posledné spustenie: ${dateStr} (${diffMin} min)`;
+        } else {
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0';
+            label.textContent = `Posledné spustenie: ${dateStr} — možný problém`;
+        }
+    } catch (e) {
+        console.error('schedulerHealth error', e);
     }
 }
 
@@ -415,10 +462,27 @@ async function load7DayChart() {
     }
 }
 
-// ─── Contacts filter state ────────────────────────────────────────────────────
+// ─── Contacts filter + bulk state ─────────────────────────────────────────────
 let allContactsCache = [];
 let contactFilterState = 'all';
 let contactSearchState = '';
+let selectedContactIds = new Set();
+
+function updateBulkBar() {
+    const bar = document.getElementById('bulkActionBar');
+    const countEl = document.getElementById('bulkCount');
+    if (selectedContactIds.size > 0) {
+        bar.classList.remove('hidden');
+        countEl.textContent = `Vybraných: ${selectedContactIds.size}`;
+    } else {
+        bar.classList.add('hidden');
+    }
+    // Sync select-all checkbox state
+    const allVisible = contactsTable.querySelectorAll('.contact-checkbox');
+    const allChecked = allVisible.length > 0 && [...allVisible].every(cb => cb.checked);
+    const selectAll = document.getElementById('selectAllContacts');
+    if (selectAll) selectAll.checked = allChecked;
+}
 
 function renderContacts() {
     const search = contactSearchState.toLowerCase();
@@ -474,11 +538,38 @@ function renderContacts() {
                    ✋ Riešim osobne
                </button>`;
 
+        const noteEscaped = (contact.note || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const isChecked = selectedContactIds.has(id);
         row.innerHTML = `
+            <td class="px-4 py-4 w-10">
+                <input type="checkbox" data-id="${id}" data-email="${contact.email}"
+                       class="contact-checkbox rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                       ${isChecked ? 'checked' : ''}>
+            </td>
             <td class="px-6 py-4 text-sm text-gray-700">${contact.name}</td>
             <td class="px-6 py-4 text-sm text-gray-700">${contact.email}</td>
             <td class="px-6 py-4 text-sm">${statusBadge}</td>
-            <td class="px-6 py-4 text-sm text-gray-600">${sentDate}</td>
+            <td class="px-4 py-3 text-sm min-w-48">
+                <div class="flex items-center gap-1.5 group">
+                    <input type="text"
+                           value="${noteEscaped}"
+                           placeholder="Pridať poznámku…"
+                           onblur="saveNote('${id}', this.value)"
+                           onkeydown="if(event.key==='Enter'){this.blur()}"
+                           class="w-full px-2 py-1 text-xs text-gray-600 placeholder-gray-300 border border-transparent rounded-md
+                                  hover:border-gray-200 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200 focus:outline-none
+                                  bg-transparent focus:bg-white transition">
+                </div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-600">
+                ${sentDate}
+                ${contact.sent && contact.lastEmailBody
+                    ? `<button onclick="showSentEmail('${id}')"
+                               class="ml-1 text-xs text-indigo-500 hover:text-indigo-700 underline underline-offset-2">
+                           👁 zobraziť
+                       </button>`
+                    : ''}
+            </td>
             <td class="px-6 py-4 text-sm">
                 <div class="flex items-center gap-2">
                     ${handoffBtn}
@@ -490,7 +581,7 @@ function renderContacts() {
                     <button onclick="deleteContact('${id}')"
                             title="Odstrániť z fronty"
                             class="px-2.5 py-1 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
-                        Zmazať
+                        🗑 Zmazať
                     </button>
                 </div>
             </td>
@@ -525,6 +616,72 @@ async function loadContacts() {
     }
 }
 
+// ─── Sent Email Detail Modal ──────────────────────────────────────────────────
+window.showSentEmail = function(contactId) {
+    const entry = allContactsCache.find(e => e.id === contactId);
+    if (!entry) return;
+    const c = entry.contact;
+
+    const modal = document.getElementById('sentEmailModal');
+    document.getElementById('sentEmailSubject').textContent = c.subject || '(bez predmetu)';
+    document.getElementById('sentEmailBody').textContent = c.lastEmailBody || '';
+
+    const sentDate = c.sentAt
+        ? new Date(c.sentAt.toDate()).toLocaleString('sk-SK')
+        : '';
+    document.getElementById('sentEmailMeta').textContent =
+        `${c.name} <${c.email}>` + (sentDate ? `  ·  ${sentDate}` : '');
+
+    modal.classList.remove('hidden');
+};
+
+document.getElementById('sentEmailClose').addEventListener('click', () => {
+    document.getElementById('sentEmailModal').classList.add('hidden');
+});
+document.getElementById('sentEmailBackdrop').addEventListener('click', () => {
+    document.getElementById('sentEmailModal').classList.add('hidden');
+});
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+document.getElementById('exportCsvBtn').addEventListener('click', () => {
+    if (allContactsCache.length === 0) {
+        alert('Žiadne kontakty na export.');
+        return;
+    }
+
+    const rows = [
+        ['Meno', 'Email', 'Stav', 'Dátum odoslania', 'Poznámka'],
+        ...allContactsCache.map(({ contact }) => {
+            let stav = 'Čaká';
+            if (contact.handoff) stav = 'Riešim osobne';
+            else if (contact.sent) stav = 'Odoslané';
+
+            const datum = contact.sentAt
+                ? new Date(contact.sentAt.toDate()).toLocaleString('sk-SK')
+                : '';
+
+            const poznamka = (contact.note || '').replace(/"/g, '""');
+
+            return [
+                `"${(contact.name || '').replace(/"/g, '""')}"`,
+                `"${contact.email}"`,
+                `"${stav}"`,
+                `"${datum}"`,
+                `"${poznamka}"`,
+            ];
+        })
+    ];
+
+    const csv = rows.map(r => r.join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `emil-kontakty-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
 // Filter buttons
 document.querySelectorAll('.contact-filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -541,6 +698,77 @@ document.querySelectorAll('.contact-filter-btn').forEach(btn => {
 document.getElementById('contactSearch').addEventListener('input', (e) => {
     contactSearchState = e.target.value;
     renderContacts();
+});
+
+// Checkbox delegation — jednotlivé riadky
+contactsTable.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('contact-checkbox')) return;
+    const id = e.target.dataset.id;
+    if (e.target.checked) selectedContactIds.add(id);
+    else selectedContactIds.delete(id);
+    updateBulkBar();
+});
+
+// Select all
+document.getElementById('selectAllContacts').addEventListener('change', (e) => {
+    const checkboxes = contactsTable.querySelectorAll('.contact-checkbox');
+    checkboxes.forEach(cb => {
+        if (e.target.checked) selectedContactIds.add(cb.dataset.id);
+        else selectedContactIds.delete(cb.dataset.id);
+        cb.checked = e.target.checked;
+    });
+    updateBulkBar();
+});
+
+// Bulk zrušiť
+document.getElementById('bulkCancelBtn').addEventListener('click', () => {
+    selectedContactIds.clear();
+    contactsTable.querySelectorAll('.contact-checkbox').forEach(cb => cb.checked = false);
+    document.getElementById('selectAllContacts').checked = false;
+    updateBulkBar();
+});
+
+// Bulk zmazať
+document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
+    const count = selectedContactIds.size;
+    if (!confirm(`Zmazať ${count} kontaktov? Táto akcia sa nedá vrátiť.`)) return;
+    try {
+        const batch = writeBatch(db);
+        selectedContactIds.forEach(id => batch.delete(doc(db, 'contacts', id)));
+        await batch.commit();
+        selectedContactIds.clear();
+        updateBulkBar();
+    } catch (err) {
+        console.error('Bulk delete error:', err);
+        alert('Chyba pri mazaní kontaktov.');
+    }
+});
+
+// Bulk blacklist
+document.getElementById('bulkBlacklistBtn').addEventListener('click', async () => {
+    const count = selectedContactIds.size;
+    if (!confirm(`Pridať ${count} kontaktov na blacklist a zmazať ich z fronty?`)) return;
+    try {
+        const batch = writeBatch(db);
+        // Collect emails from cache
+        const toProcess = allContactsCache.filter(({ id }) => selectedContactIds.has(id));
+        toProcess.forEach(({ id, contact }) => {
+            const emailLower = normalizeEmail(contact.email);
+            batch.set(doc(db, 'blacklist', emailLower), {
+                value: emailLower,
+                type: 'email',
+                reason: 'Manuálne (bulk)',
+                addedAt: serverTimestamp(),
+            });
+            batch.delete(doc(db, 'contacts', id));
+        });
+        await batch.commit();
+        selectedContactIds.clear();
+        updateBulkBar();
+    } catch (err) {
+        console.error('Bulk blacklist error:', err);
+        alert('Chyba pri blacklistovaní kontaktov.');
+    }
 });
 
 window.deleteContact = async (contactId) => {
@@ -577,6 +805,15 @@ window.releaseContact = async (contactId) => {
     } catch (error) {
         console.error('Release error:', error);
         alert('Chyba pri uvoľnení kontaktu.');
+    }
+
+};
+
+window.saveNote = async (contactId, note) => {
+    try {
+        await updateDoc(doc(db, 'contacts', contactId), { note: note.trim() });
+    } catch (error) {
+        console.error('Save note error:', error);
     }
 };
 
@@ -731,6 +968,11 @@ async function doImport() {
                 sent: false, createdAt: serverTimestamp()
             });
         }
+        // New contacts added — reset end-notification so it fires when this batch finishes
+        try {
+            await updateDoc(doc(db, 'settings', 'campaign'), { endNotificationSent: false });
+        } catch (_) { /* field may not exist yet, that's fine */ }
+
         alert(`✅ Importovaných ${csvPreviewData.length} kontaktov.`);
     } catch (err) {
         console.error('Import error:', err);

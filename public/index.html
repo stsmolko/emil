@@ -246,8 +246,8 @@
                 </div>
             </div>
 
-            <!-- Campaign ETA standalone card -->
-            <div class="mb-6 bg-white rounded-xl border border-indigo-200 shadow-sm p-5 flex items-center justify-between gap-4">
+            <!-- Campaign ETA + Scheduler Health card -->
+            <div class="mb-6 bg-white rounded-xl border border-indigo-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-indigo-100 p-3 rounded-lg flex-shrink-0">
                         <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -257,6 +257,13 @@
                     <div>
                         <p class="text-sm font-semibold text-gray-700">Odhadovaný koniec kampane</p>
                         <p id="campaignEta" class="text-sm text-gray-500 mt-0.5">Načítavam...</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="schedulerHealthDot" class="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"></span>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Funkčnosť systému</p>
+                        <p id="schedulerHealthLabel" class="text-sm text-gray-500">Načítavam...</p>
                     </div>
                 </div>
             </div>
@@ -360,9 +367,14 @@
                 <div class="p-6 border-b border-light-border">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <h3 class="text-xl font-bold text-gray-900">Kontakty <span id="contactsCountBadge" class="text-sm font-normal text-gray-400"></span></h3>
-                        <button id="refreshContacts" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition text-sm">
-                            Obnoviť
-                        </button>
+                        <div class="flex gap-2">
+                            <button id="exportCsvBtn" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-lg transition text-sm font-medium">
+                                ⬇️ Export CSV
+                            </button>
+                            <button id="refreshContacts" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg transition text-sm">
+                                Obnoviť
+                            </button>
+                        </div>
                     </div>
                     <!-- Filter + Search -->
                     <div class="flex flex-wrap items-center gap-2 mt-4">
@@ -380,22 +392,42 @@
                     <table class="w-full">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-4 py-3 w-10"><input type="checkbox" id="selectAllContacts" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"></th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Meno</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Email</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Stav odoslania</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Dátum a čas odoslania</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Poznámka</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Dátum odoslania</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase">Akcie</th>
                             </tr>
                         </thead>
                         <tbody id="contactsTable" class="divide-y divide-light-border">
                             <tr>
-                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                <td colspan="7" class="px-6 py-8 text-center text-gray-500">
                                     <div class="loader mx-auto"></div>
                                     <p class="mt-2">Načítavam...</p>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <!-- Bulk action bar -->
+                <div id="bulkActionBar" class="hidden px-6 py-3 bg-indigo-50 border-t border-indigo-200 flex items-center justify-between gap-3">
+                    <span id="bulkCount" class="text-sm font-medium text-indigo-700"></span>
+                    <div class="flex gap-2">
+                        <button id="bulkBlacklistBtn"
+                                class="px-4 py-2 text-xs font-medium rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition">
+                            🚫 Blokovať vybrané
+                        </button>
+                        <button id="bulkDeleteBtn"
+                                class="px-4 py-2 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
+                            Zmazať vybrané
+                        </button>
+                        <button id="bulkCancelBtn"
+                                class="px-4 py-2 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition">
+                            Zrušiť výber
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1007,6 +1039,23 @@
                 <button id="csvPreviewConfirmBtn" class="px-4 py-2 text-sm font-medium rounded-lg gradient-bg text-white hover:opacity-90 transition">
                     Importovať
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sent Email Detail Modal -->
+    <div id="sentEmailModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/50" id="sentEmailBackdrop"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh]">
+            <div class="flex items-center justify-between p-5 border-b border-gray-100">
+                <div>
+                    <p class="text-xs text-gray-400 mb-0.5" id="sentEmailMeta"></p>
+                    <h3 class="font-semibold text-gray-900 text-sm" id="sentEmailSubject"></h3>
+                </div>
+                <button id="sentEmailClose" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-5 overflow-y-auto flex-1">
+                <pre id="sentEmailBody" class="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed"></pre>
             </div>
         </div>
     </div>

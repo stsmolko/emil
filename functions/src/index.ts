@@ -201,6 +201,11 @@ const updateStats = async (success: boolean, error?: string) => {
 export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZone("Europe/Bratislava").onRun(async () => {
   console.log("Smart Scheduler triggered");
 
+  // Always record health ping so dashboard can show "last run" time
+  await db.collection("settings").doc("schedulerHealth").set({
+    lastRun: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+
   // Check if campaign is active
   const campaignDoc = await db.collection("settings").doc("campaign").get();
   const campaignActive = campaignDoc.exists && campaignDoc.data()?.active === true;
@@ -288,6 +293,59 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
 
   if (contactsSnapshot.empty) {
     console.log("No unsent contacts found.");
+
+    // Check if campaign is truly finished (all contacts sent, none just handoff-skipped)
+    const allContactsSnap = await db.collection("contacts").get();
+    const totalAll = allContactsSnap.size;
+    if (totalAll === 0) return;
+
+    const sentCount = allContactsSnap.docs.filter(d => d.data().sent === true).length;
+    const handoffCount = allContactsSnap.docs.filter(d => d.data().handoff === true && d.data().sent !== true).length;
+    const remainingUnsent = totalAll - sentCount - handoffCount;
+
+    // Only send notification once — check a flag in Firestore
+    const campaignData = campaignDoc.data() || {};
+    if (remainingUnsent === 0 && !campaignData.endNotificationSent) {
+      console.log("Campaign finished! Sending end notification.");
+
+      // Mark notification as sent to avoid spamming
+      await db.collection("settings").doc("campaign").update({ endNotificationSent: true });
+
+      // Load SMTP config
+      const smtpDoc = await db.collection("settings").doc("smtp").get();
+      if (!smtpDoc.exists) return;
+      const smtp = smtpDoc.data() as SmtpSettings;
+
+      const transporter = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.port === 465,
+        auth: { user: smtp.user, pass: smtp.pass },
+      });
+
+      const handoffNote = handoffCount > 0
+        ? `\n\nℹ️ ${handoffCount} kontakt${handoffCount > 1 ? "y sú" : " je"} označen${handoffCount > 1 ? "é" : "ý"} ako „Riešim osobne" — emaily na ne neboli odoslané automaticky.`
+        : "";
+
+      await transporter.sendMail({
+        from: smtp.from || smtp.user,
+        to: smtp.user,
+        subject: "✅ EMIL: Kampaň dokončená",
+        text:
+          `Dobrá správa!\n\n` +
+          `EMIL úspešne dokončil kampaň.\n\n` +
+          `📊 Štatistiky:\n` +
+          `• Celkom kontaktov: ${totalAll}\n` +
+          `• Odoslaných emailov: ${sentCount}\n` +
+          `• Preskočených (handoff): ${handoffCount}\n` +
+          handoffNote +
+          `\n\nAk chceš spustiť novú kampaň, importuj nové kontakty a spusti kampaň v EMIL dashboarde.\n\n` +
+          `— EMIL`,
+      });
+
+      console.log(`End notification sent to ${smtp.user}`);
+    }
+
     return;
   }
 
@@ -405,6 +463,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       sent: true,
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       subject: subject,
+      lastEmailBody: textBody,
     });
 
     // Update stats with timestamp of last sent email
