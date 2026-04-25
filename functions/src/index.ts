@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -33,7 +34,45 @@ interface SmtpSettings {
   user: string;
   pass: string;
   from: string;
+  provider?: "smtp" | "resend";
+  resendApiKey?: string;
+  resendFrom?: string;
 }
+
+interface SendMailOptions {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+}
+
+const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<void> => {
+  if (smtp.provider === "resend") {
+    if (!smtp.resendApiKey) throw new Error("Resend API kľúč nie je nastavený");
+    const resend = new Resend(smtp.resendApiKey);
+    const fromAddr = smtp.resendFrom || smtp.from || smtp.user;
+    const { error } = await resend.emails.send({
+      from: fromAddr,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+    });
+    if (error) throw new Error(`Resend error: ${error.message}`);
+  } else {
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.port === 465,
+      auth: { user: smtp.user, pass: smtp.pass },
+    });
+    await transporter.sendMail({
+      from: options.from,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+    });
+  }
+};
 
 interface EmailStats {
   sentToday: number;
@@ -316,19 +355,13 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       if (!smtpDoc.exists) return;
       const smtp = smtpDoc.data() as SmtpSettings;
 
-      const transporter = nodemailer.createTransport({
-        host: smtp.host,
-        port: smtp.port,
-        secure: smtp.port === 465,
-        auth: { user: smtp.user, pass: smtp.pass },
-      });
-
       const handoffNote = handoffCount > 0
         ? `\n\nℹ️ ${handoffCount} kontakt${handoffCount > 1 ? "y sú" : " je"} označen${handoffCount > 1 ? "é" : "ý"} ako „Riešim osobne" — emaily na ne neboli odoslané automaticky.`
         : "";
 
-      await transporter.sendMail({
-        from: smtp.from || smtp.user,
+      const notifFrom = smtp.resendFrom || smtp.from || smtp.user;
+      await sendMail(smtp, {
+        from: notifFrom,
         to: smtp.user,
         subject: "✅ EMIL: Kampaň dokončená",
         text:
@@ -403,16 +436,6 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   console.log(`Waiting ${delay}ms before sending...`);
   await new Promise((resolve) => setTimeout(resolve, delay));
 
-  const transporter = nodemailer.createTransport({
-    host: smtpSettings.host,
-    port: smtpSettings.port,
-    secure: smtpSettings.port === 465,
-    auth: {
-      user: smtpSettings.user,
-      pass: smtpSettings.pass,
-    },
-  });
-
   try {
     const subject = await getRandomSubject();
     const emailSettings = await db.collection("settings").doc("email").get();
@@ -452,8 +475,9 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     ];
     const textBody = parts.join("\n\n");
 
-    await transporter.sendMail({
-      from: smtpSettings.from,
+    const fromAddr = smtpSettings.resendFrom || smtpSettings.from || smtpSettings.user;
+    await sendMail(smtpSettings, {
+      from: fromAddr,
       to: contactData.email,
       subject: subject,
       text: textBody,
@@ -697,15 +721,9 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
   ];
   const textBody = parts.join("\n\n");
 
-  const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.port === 465,
-    auth: { user: smtp.user, pass: smtp.pass },
-  });
-
-  await transporter.sendMail({
-    from: smtp.from || smtp.user,
+  const fromAddr = smtp.resendFrom || smtp.from || smtp.user;
+  await sendMail(smtp, {
+    from: fromAddr,
     to: smtp.user,
     subject: `[TEST] ${subject}`,
     text: textBody,

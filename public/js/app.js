@@ -1000,6 +1000,35 @@ refreshContacts.addEventListener('click', () => {
     loadDashboard();
 });
 
+function switchProvider(provider) {
+    const isResend = provider === 'resend';
+    document.getElementById('emailProvider').value = provider;
+
+    const smtpBtn = document.getElementById('providerSmtpBtn');
+    const resendBtn = document.getElementById('providerResendBtn');
+    const smtpFields = document.getElementById('smtpFields');
+    const resendFields = document.getElementById('resendFields');
+
+    if (isResend) {
+        resendBtn.classList.add('border-primary', 'bg-indigo-50', 'text-indigo-700');
+        resendBtn.classList.remove('border-light-border', 'text-gray-500');
+        smtpBtn.classList.remove('border-primary', 'bg-indigo-50', 'text-indigo-700');
+        smtpBtn.classList.add('border-light-border', 'text-gray-500');
+        smtpFields.classList.add('hidden');
+        resendFields.classList.remove('hidden');
+    } else {
+        smtpBtn.classList.add('border-primary', 'bg-indigo-50', 'text-indigo-700');
+        smtpBtn.classList.remove('border-light-border', 'text-gray-500');
+        resendBtn.classList.remove('border-primary', 'bg-indigo-50', 'text-indigo-700');
+        resendBtn.classList.add('border-light-border', 'text-gray-500');
+        resendFields.classList.add('hidden');
+        smtpFields.classList.remove('hidden');
+    }
+}
+
+document.getElementById('providerSmtpBtn').addEventListener('click', () => switchProvider('smtp'));
+document.getElementById('providerResendBtn').addEventListener('click', () => switchProvider('resend'));
+
 async function loadSettings() {
     try {
         const smtpDoc = await getDocs(collection(db, 'settings'));
@@ -1007,10 +1036,15 @@ async function loadSettings() {
         
         if (settingsData) {
             const data = settingsData.data();
+            const provider = data.provider || 'smtp';
+            switchProvider(provider);
             document.getElementById('smtpHost').value = data.host || '';
             document.getElementById('smtpPort').value = data.port || '';
             document.getElementById('smtpUser').value = data.user || '';
             document.getElementById('smtpPass').value = data.pass || '';
+            document.getElementById('resendApiKey').value = data.resendApiKey || '';
+            document.getElementById('resendFrom').value = data.resendFrom || '';
+            document.getElementById('resendNotifyEmail').value = data.user || '';
             document.getElementById('dailyLimitInput').value = data.dailyLimit || 10;
         }
         
@@ -1075,18 +1109,44 @@ function validateSpintax(text) {
 smtpForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    const provider = document.getElementById('emailProvider').value;
     const host = document.getElementById('smtpHost').value;
     const port = parseInt(document.getElementById('smtpPort').value);
-    const user = document.getElementById('smtpUser').value;
+    const user = provider === 'resend'
+        ? document.getElementById('resendNotifyEmail').value
+        : document.getElementById('smtpUser').value;
     const pass = document.getElementById('smtpPass').value;
     const from = user;
+    const resendApiKey = document.getElementById('resendApiKey').value;
+    const resendFrom = document.getElementById('resendFrom').value;
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const greetings = splitEntries(document.getElementById('emailGreetings').value);
     const closings = splitEntries(document.getElementById('emailClosings').value);
     const devices = [...splitEntries(document.getElementById('emailDevice').value), ''];
     const emailBody = document.getElementById('emailBody').value;
-    
+
+    // Validate provider-specific required fields
+    if (provider === 'resend') {
+        if (!resendApiKey.trim()) {
+            alert('⚠️ Zadajte Resend API kľúč!');
+            return;
+        }
+        if (!resendFrom.trim()) {
+            alert('⚠️ Zadajte odosielateľa (From) pre Resend!');
+            return;
+        }
+        if (!user.trim()) {
+            alert('⚠️ Zadajte váš email pre notifikácie!');
+            return;
+        }
+    } else {
+        if (!host.trim() || !port || !user.trim() || !pass.trim()) {
+            alert('⚠️ Vyplňte všetky SMTP polia!');
+            return;
+        }
+    }
+
     // Validate subjects
     if (subjects.length === 0) {
         alert('⚠️ Musíte zadať aspoň 1 predmet emailu!\n\nOdporúčame 3-10 rôznych predmetov pre lepšiu variabilitu.');
@@ -1106,11 +1166,14 @@ smtpForm.addEventListener('submit', async (e) => {
     
     try {
         await setDoc(doc(db, 'settings', 'smtp'), {
+            provider,
             host,
             port,
             user,
             pass,
             from,
+            resendApiKey,
+            resendFrom,
             dailyLimit
         });
         
