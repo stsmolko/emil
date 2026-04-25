@@ -467,9 +467,12 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
 
     // Auto-prepend greeting and auto-append closing + device (device can be empty = no signature)
     // Each part is trimmed so trailing newlines in textarea fields don't create empty space
+    const optOut: string = emailSettings.data()?.optOut || "";
+
     const parts = [
       ...(greeting.trim() ? [greeting.trim()] : []),
       emailBody.trim(),
+      ...(optOut.trim() ? [optOut.trim()] : []),
       ...(closing.trim() ? [closing.trim()] : []),
       ...(device.trim() ? [device.trim()] : []),
     ];
@@ -702,6 +705,7 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
     closings: string[];
     devices: string[];
     emailBody: string;
+    optOut?: string;
   };
 
   const subject = parseSpintax(
@@ -712,10 +716,12 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
   const device = getRandomDevice(emailSettings.devices || []);
   const body = parseSpintax(emailSettings.emailBody || "")
     .replace(/\{\{name\}\}/g, "Ján Novák (test)");
+  const optOut: string = emailSettings.optOut || "";
 
   const parts = [
     ...(greeting.trim() ? [greeting.trim()] : []),
     body.trim(),
+    ...(optOut.trim() ? [optOut.trim()] : []),
     ...(closing.trim() ? [closing.trim()] : []),
     ...(device.trim() ? [device.trim()] : []),
   ];

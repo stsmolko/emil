@@ -1000,50 +1000,23 @@ refreshContacts.addEventListener('click', () => {
     loadDashboard();
 });
 
-function switchProvider(provider) {
-    const isResend = provider === 'resend';
-    document.getElementById('emailProvider').value = provider;
-
-    const smtpBtn = document.getElementById('providerSmtpBtn');
-    const resendBtn = document.getElementById('providerResendBtn');
-    const smtpFields = document.getElementById('smtpFields');
-    const resendFields = document.getElementById('resendFields');
-
-    if (isResend) {
-        resendBtn.classList.add('border-primary', 'bg-indigo-50', 'text-indigo-700');
-        resendBtn.classList.remove('border-light-border', 'text-gray-500');
-        smtpBtn.classList.remove('border-primary', 'bg-indigo-50', 'text-indigo-700');
-        smtpBtn.classList.add('border-light-border', 'text-gray-500');
-        smtpFields.classList.add('hidden');
-        resendFields.classList.remove('hidden');
-    } else {
-        smtpBtn.classList.add('border-primary', 'bg-indigo-50', 'text-indigo-700');
-        smtpBtn.classList.remove('border-light-border', 'text-gray-500');
-        resendBtn.classList.remove('border-primary', 'bg-indigo-50', 'text-indigo-700');
-        resendBtn.classList.add('border-light-border', 'text-gray-500');
-        resendFields.classList.add('hidden');
-        smtpFields.classList.remove('hidden');
-    }
-}
-
-document.getElementById('providerSmtpBtn').addEventListener('click', () => switchProvider('smtp'));
-document.getElementById('providerResendBtn').addEventListener('click', () => switchProvider('resend'));
-
 async function loadSettings() {
     try {
         const smtpDoc = await getDocs(collection(db, 'settings'));
         const settingsData = smtpDoc.docs.find(doc => doc.id === 'smtp');
-        
+
         if (settingsData) {
             const data = settingsData.data();
-            const provider = data.provider || 'smtp';
-            switchProvider(provider);
-            document.getElementById('smtpHost').value = data.host || '';
-            document.getElementById('smtpPort').value = data.port || '';
-            document.getElementById('smtpUser').value = data.user || '';
-            document.getElementById('smtpPass').value = data.pass || '';
             document.getElementById('resendApiKey').value = data.resendApiKey || '';
-            document.getElementById('resendFrom').value = data.resendFrom || '';
+            const resendFromRaw = data.resendFrom || '';
+            const fromMatch = resendFromRaw.match(/^(.*?)\s*<([^>]+)>$/);
+            if (fromMatch) {
+                document.getElementById('resendFromName').value = fromMatch[1].trim();
+                document.getElementById('resendFromEmail').value = fromMatch[2].trim();
+            } else {
+                document.getElementById('resendFromName').value = '';
+                document.getElementById('resendFromEmail').value = resendFromRaw;
+            }
             document.getElementById('resendNotifyEmail').value = data.user || '';
             document.getElementById('dailyLimitInput').value = data.dailyLimit || 10;
         }
@@ -1080,6 +1053,9 @@ async function loadSettings() {
                 ].join('\n\n');
             }
             document.getElementById('emailBody').value = data.emailBody || '';
+            document.getElementById('emailOptOut').value = data.optOut !== undefined
+                ? data.optOut
+                : 'P.S. {Ak už o ďalšiu spoluprácu nemáte záujem|Ak o spoluprácu záujem nemáte|V prípade, že o ďalší kontakt nestojíte}, {stačí odpísať|jednoducho odpíšte|napíšte nám} „nie" a {vašu adresu|váš e-mail} {hneď|okamžite|automaticky} {vyradíme zo zoznamu|vymažeme z databázy|odstránime zo zoznamu}, {aby sme vás viac nerušili|a viac vás kontaktovať nebudeme|a nebudeme vás ďalej obťažovať}.';
         }
         updateVariantCounter();
     } catch (error) {
@@ -1109,42 +1085,62 @@ function validateSpintax(text) {
 smtpForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const provider = document.getElementById('emailProvider').value;
-    const host = document.getElementById('smtpHost').value;
-    const port = parseInt(document.getElementById('smtpPort').value);
-    const user = provider === 'resend'
-        ? document.getElementById('resendNotifyEmail').value
-        : document.getElementById('smtpUser').value;
-    const pass = document.getElementById('smtpPass').value;
-    const from = user;
-    const resendApiKey = document.getElementById('resendApiKey').value;
-    const resendFrom = document.getElementById('resendFrom').value;
+    const resendApiKey = document.getElementById('resendApiKey').value.trim();
+    const resendFromName = document.getElementById('resendFromName').value.trim();
+    const resendFromEmail = document.getElementById('resendFromEmail').value.trim();
+    const resendFrom = resendFromName ? `${resendFromName} <${resendFromEmail}>` : resendFromEmail;
+    const user = document.getElementById('resendNotifyEmail').value.trim();
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const greetings = splitEntries(document.getElementById('emailGreetings').value);
     const closings = splitEntries(document.getElementById('emailClosings').value);
     const devices = [...splitEntries(document.getElementById('emailDevice').value), ''];
     const emailBody = document.getElementById('emailBody').value;
+    const optOut = document.getElementById('emailOptOut').value.trim();
 
-    // Validate provider-specific required fields
-    if (provider === 'resend') {
-        if (!resendApiKey.trim()) {
-            alert('⚠️ Zadajte Resend API kľúč!');
-            return;
-        }
-        if (!resendFrom.trim()) {
-            alert('⚠️ Zadajte odosielateľa (From) pre Resend!');
-            return;
-        }
-        if (!user.trim()) {
-            alert('⚠️ Zadajte váš email pre notifikácie!');
-            return;
-        }
-    } else {
-        if (!host.trim() || !port || !user.trim() || !pass.trim()) {
-            alert('⚠️ Vyplňte všetky SMTP polia!');
-            return;
-        }
+    if (!resendApiKey) {
+        alert('⚠️ Zadajte Resend API kľúč!');
+        return;
+    }
+    if (!resendFromName) {
+        alert('⚠️ Zadajte zobrazené meno odosielateľa!');
+        return;
+    }
+    if (resendFromName.length > 50) {
+        alert('⚠️ Meno odosielateľa je príliš dlhé (max 50 znakov).');
+        return;
+    }
+    if (/[<>"@]/.test(resendFromName)) {
+        alert('⚠️ Meno odosielateľa obsahuje nepovolené znaky (<, >, ", @).');
+        return;
+    }
+    if (/[^\x00-\x7FÀ-žÁ-žáäčďéěíľĺňóôŕšťúůýžÄČĎÉÍĽĹŇÓÔŔŠŤÚŮÝŽ\s\-\.]/.test(resendFromName)) {
+        alert('⚠️ Meno odosielateľa obsahuje nepovolené znaky alebo emoji.');
+        return;
+    }
+    if (resendFromName === resendFromName.toUpperCase() && resendFromName.length > 3) {
+        alert('⚠️ Meno odosielateľa je celé veľkými písmenami (Caps Lock). Použite normálny zápis.');
+        return;
+    }
+    const SPAM_WORDS_FROM = [
+        'akcia', 'zdarma', 'free', 'promo', 'výhra', 'výherca', 'vyhral', 'vyhraj',
+        'zľava', 'sleva', 'výpredaj', 'výprodej', 'bonus', 'odmena', 'cashback',
+        'klikni', 'neklikaj', 'urgentné', 'urgentne', 'dôležité', 'pozor',
+        'win', 'winner', 'offer', 'deal', 'sale', 'discount',
+    ];
+    const fromNameLower = resendFromName.toLowerCase();
+    const spamWordInName = SPAM_WORDS_FROM.find(w => fromNameLower.includes(w));
+    if (spamWordInName) {
+        alert(`⚠️ Meno odosielateľa obsahuje spam slovo: "${spamWordInName}".\n\nPoužite bežné meno a priezvisko.`);
+        return;
+    }
+    if (!resendFromEmail) {
+        alert('⚠️ Zadajte email odosielateľa!');
+        return;
+    }
+    if (!user) {
+        alert('⚠️ Zadajte váš email pre notifikácie!');
+        return;
     }
 
     // Validate subjects
@@ -1166,12 +1162,8 @@ smtpForm.addEventListener('submit', async (e) => {
     
     try {
         await setDoc(doc(db, 'settings', 'smtp'), {
-            provider,
-            host,
-            port,
+            provider: 'resend',
             user,
-            pass,
-            from,
             resendApiKey,
             resendFrom,
             dailyLimit
@@ -1182,7 +1174,8 @@ smtpForm.addEventListener('submit', async (e) => {
             greetings,
             closings,
             devices,
-            emailBody
+            emailBody,
+            optOut
         });
         
         settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Predmetov: ${subjects.length} | Oslovení: ${greetings.length} | Ukončení: ${closings.length} | Zariadení: ${devices.length}</small>`;
@@ -1313,13 +1306,23 @@ function subjectBodyOverlap(subject, body) {
     return matches / subWords.size;
 }
 
-function analyzeText(text, label, subjectForOverlap = null) {
+function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) {
     const original = stripSpintax(text);
     const lower = original.toLowerCase();
     const issues = [];
     const warnings = [];
     const good = [];
     let penalty = 0;
+
+    // 0a. Emoji — len pre predmety (checkEmoji = true)
+    if (checkEmoji) {
+        if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(original)) {
+            issues.push(`Emoji v predmete — spam filtre to penalizujú (+2 body)`);
+            penalty += 2;
+        } else {
+            good.push('Bez emoji v predmete');
+        }
+    }
 
     // 0. Vulgárne slová — word boundary regex (\b) aby "hokejka" nespúšťala alert
     const foundHard = VULGAR_LIST.HARD.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(original));
@@ -1474,6 +1477,126 @@ function analyzeText(text, label, subjectForOverlap = null) {
     return { html, score };
 }
 
+function analyzeFromName(name) {
+    const issues = [];
+    const warnings = [];
+    const good = [];
+    let penalty = 0;
+
+    if (!name || !name.trim()) {
+        const html = `
+            <div class="border border-gray-200 rounded-xl overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <span class="text-sm font-bold text-gray-700">👤 Meno odosielateľa</span>
+                    <span class="text-xs text-gray-400">— nevyplnené, preskočené</span>
+                </div>
+            </div>`;
+        return { html, score: 10 };
+    }
+
+    // 0. Vulgarizmy — HARD (+20) a SOFT (+3)
+    const foundHardFrom = VULGAR_LIST.HARD.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(name));
+    const foundSoftFrom = VULGAR_LIST.SOFT.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(name));
+    if (foundHardFrom.length > 0) {
+        issues.push(`🚨 Vulgárne slová (kritické): <strong>${foundHardFrom.join(', ')}</strong> — email nesmie odísť`);
+        penalty += 20;
+    }
+    if (foundSoftFrom.length > 0) {
+        warnings.push(`Neprofesionálne výrazy: <strong>${foundSoftFrom.join(', ')}</strong>`);
+        penalty += 3;
+    }
+    if (foundHardFrom.length === 0 && foundSoftFrom.length === 0) {
+        good.push('Bez vulgárnych slov');
+    }
+
+    // 1. Caps Lock (+2) — celé slovo veľkými, ignoruj skratky do 4 znakov
+    const words = name.trim().split(/\s+/);
+    const capsWords = words.filter(w => w.length > 3 && w === w.toUpperCase() && /[A-ZÁÄČĎÉÍĽĹŇÓÔŔŠŤÚÝŽ]/.test(w));
+    if (capsWords.length > 0) {
+        issues.push(`Caps Lock v mene: <strong>${capsWords.join(', ')}</strong> — +2 body spamu`);
+        penalty += 2;
+    } else {
+        good.push('Bez Caps Lock');
+    }
+
+    // 2. Emoji (+2)
+    if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(name)) {
+        issues.push(`Emoji v mene odosielateľa — +2 body spamu`);
+        penalty += 2;
+    } else {
+        good.push('Bez emoji');
+    }
+
+    // 3. Spam/clickbait slová (+2 za slovo)
+    const FROM_SPAM = [
+        'akcia', 'zdarma', 'free', 'výhra', 'súrne', 'surne', 'urgentné', 'urgentne',
+        'zľava', 'sleva', 'promo', 'bonus', 'win', 'offer', 'sale', 'discount',
+        'výpredaj', 'vypredaj', 'official', 'ofické',
+    ];
+    const nameLower = name.toLowerCase();
+    const foundSpam = FROM_SPAM.filter(w => nameLower.includes(w));
+    if (foundSpam.length > 0) {
+        foundSpam.forEach(w => {
+            issues.push(`Spam slovo v mene: <strong>${w}</strong> — +2 body`);
+            penalty += 2;
+        });
+    } else {
+        good.push('Bez clickbait slov');
+    }
+
+    // 4. Špeciálne znaky: $, %, !, [, *, # (+2)
+    const specialMatch = name.match(/[$%![\]*#@<>"]/g);
+    if (specialMatch) {
+        const unique = [...new Set(specialMatch)];
+        issues.push(`Špeciálne znaky v mene: <strong>${unique.join(' ')}</strong> — +2 body`);
+        penalty += 2;
+    } else {
+        good.push('Bez špeciálnych znakov');
+    }
+
+    // 5. Dĺžka
+    if (name.length > 50) {
+        warnings.push(`Meno je príliš dlhé: <strong>${name.length} znakov</strong> — max 50`);
+        penalty += 1;
+    } else {
+        good.push(`Dĺžka mena v poriadku (${name.length} znakov)`);
+    }
+
+    // 6. Doporučenie formátu mena
+    const fromEmailVal = document.getElementById('resendFromEmail')?.value.trim() || '';
+    const domain = fromEmailVal.split('@')[1] || '';
+    const hasFirstName = /^[A-ZÁÄČĎÉÍĽĹŇÓÔŔŠŤÚÝŽ][a-záäčďéíľĺňóôŕšťúýž]+/.test(name.trim());
+    if (domain && !name.toLowerCase().includes(domain.toLowerCase())) {
+        const exampleName = name.trim().split(/\s+/)[0];
+        good.push(`💡 Tip: Skús formát "<strong>${exampleName} z ${domain}</strong>" — osobnejšie a dôveryhodnejšie`);
+    } else if (hasFirstName && domain) {
+        good.push(`Formát mena vyzerá dobre`);
+    }
+
+
+    const score = Math.max(0, 10 - penalty);
+    const scoreColor  = score >= 8 ? 'text-green-600'  : score >= 5 ? 'text-yellow-600'  : 'text-red-600';
+    const scoreBg     = score >= 8 ? 'bg-green-50 border-green-200'  : score >= 5 ? 'bg-yellow-50 border-yellow-200'  : 'bg-red-50 border-red-200';
+    const scoreBorder = score >= 8 ? 'border-green-200' : score >= 5 ? 'border-yellow-200' : 'border-red-200';
+    const scoreLabel  = score >= 8 ? '✅ Nízke riziko'  : score >= 5 ? '⚠️ Stredné riziko' : '🛑 Vysoké riziko';
+
+    let html = `
+        <div class="border ${scoreBorder} rounded-xl overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 ${scoreBg} border-b ${scoreBorder}">
+                <span class="text-sm font-bold text-gray-700">👤 Meno odosielateľa</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-lg font-bold ${scoreColor}">${score}/10</span>
+                    <span class="text-xs font-semibold ${scoreColor}">${scoreLabel}</span>
+                </div>
+            </div>
+            <div class="px-4 py-3 space-y-1 bg-white">`;
+    issues.forEach(i  => { html += `<p class="text-xs text-red-700">❌ ${i}</p>`; });
+    warnings.forEach(w => { html += `<p class="text-xs text-yellow-700">⚠️ ${w}</p>`; });
+    good.forEach(g    => { html += `<p class="text-xs text-green-700">✅ ${g}</p>`; });
+    html += `</div></div>`;
+    return { html, score };
+}
+
 let spamCheckPassed = true;
 
 function updateSaveButton() {
@@ -1496,29 +1619,39 @@ function updateSaveButton() {
 }
 
 document.getElementById('spamCheckBtn').addEventListener('click', () => {
+    const fromName = document.getElementById('resendFromName')?.value.trim() || '';
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const body = document.getElementById('emailBody').value.trim();
+    const closings = splitEntries(document.getElementById('emailClosings').value);
 
-    if (!subjects.length && !body) {
-        alert('Najprv vyplňte predmety alebo telo emailu.');
+    if (!fromName && !subjects.length && !body && !closings.length) {
+        alert('Najprv vyplňte aspoň jedno pole.');
         return;
     }
 
+    const fromResult = analyzeFromName(fromName);
+
     const subjectText = subjects.join(' | ');
     const subjectResult = subjectText
-        ? analyzeText(subjectText, '📋 Predmety emailov')
+        ? analyzeText(subjectText, '📋 Predmety emailov', null, true)
         : { html: '<p class="text-xs text-gray-400 px-2">Žiadne predmety na kontrolu.</p>', score: 10 };
 
     const bodyResult = body
         ? analyzeText(body, '✉️ Telo emailu', subjectText)
         : { html: '<p class="text-xs text-gray-400 px-2">Žiadne telo emailu na kontrolu.</p>', score: 10 };
 
+    const closingText = closings.join(' | ');
+    const closingResult = closingText
+        ? analyzeText(closingText, '✌️ Ukončenia emailu')
+        : { html: '<p class="text-xs text-gray-400 px-2">Žiadne ukončenia na kontrolu.</p>', score: 10 };
+
+    document.getElementById('spamFromResult').innerHTML = fromResult.html;
     document.getElementById('spamSubjectResult').innerHTML = subjectResult.html;
     document.getElementById('spamBodyResult').innerHTML = bodyResult.html;
+    document.getElementById('spamClosingResult').innerHTML = closingResult.html;
     document.getElementById('spamResults').classList.remove('hidden');
 
-    // Blokovanie uloženia ak skóre = 0 (HARD slová alebo extrémne spam)
-    spamCheckPassed = subjectResult.score > 0 && bodyResult.score > 0;
+    spamCheckPassed = fromResult.score > 0 && subjectResult.score > 0 && bodyResult.score > 0 && closingResult.score > 0;
     updateSaveButton();
 });
 
@@ -1558,7 +1691,8 @@ function generatePreview() {
     const cntG = Math.max(greetings.length, 1);
     const cntC = Math.max(closings.length, 1);
     const cntD = devices.length + 1; // +1 = prázdny podpis
-    const total = cntS * cntG * cntC * cntD;
+    const cntO = countSpintaxVariants(document.getElementById('emailOptOut').value.trim());
+    const total = cntS * cntG * cntO * cntC * cntD;
 
     document.getElementById('cntSubjects').textContent = cntS;
     document.getElementById('cntGreetings').textContent = cntG;
@@ -1576,10 +1710,12 @@ function generatePreview() {
     const resolvedBody = clientParseSpintax(body).replace(/\{\{name\}\}/g, 'Ján Novák');
     const closing = clientParseSpintax(getRandomItem(closings));
     const device = clientParseSpintax(getRandomItem([...devices, ''])).trim();
+    const optOut = document.getElementById('emailOptOut').value.trim();
 
     const parts = [
         ...(greeting.trim() ? [greeting.trim()] : []),
         resolvedBody.trim(),
+        ...(optOut ? [optOut] : []),
         ...(closing.trim() ? [closing.trim()] : []),
         ...(device.trim() ? [device.trim()] : []),
     ];
@@ -1593,6 +1729,7 @@ function generatePreview() {
     const mainParts = [
         ...(greeting.trim() ? [greeting.trim()] : []),
         resolvedBody.trim(),
+        ...(optOut ? [optOut] : []),
         ...(closing.trim() ? [closing.trim()] : []),
     ];
 
@@ -1618,20 +1755,34 @@ function generatePreview() {
 // Mesačný max: 10 emailov/deň × 26 pracovných dní = 260
 const MONTHLY_MAX_EMAILS = 260;
 
+function countSpintaxVariants(text) {
+    if (!text || !text.trim()) return 1;
+    let count = 1;
+    const regex = /\{([^{}]*)\}/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        count *= match[1].split('|').length;
+    }
+    return count;
+}
+
 function updateVariantCounter() {
     const subjects  = splitEntries(document.getElementById('emailSubjects').value);
     const greetings = splitEntries(document.getElementById('emailGreetings').value);
     const closings  = splitEntries(document.getElementById('emailClosings').value);
     const devices   = splitEntries(document.getElementById('emailDevice').value);
+    const optOutText = document.getElementById('emailOptOut').value.trim();
 
     const cntS = Math.max(subjects.length, 1);
     const cntG = Math.max(greetings.length, 1);
     const cntC = Math.max(closings.length, 1);
     const cntD = devices.length + 1; // +1 prázdny podpis
-    const total = cntS * cntG * cntC * cntD;
+    const cntO = countSpintaxVariants(optOutText);
+    const total = cntS * cntG * cntO * cntC * cntD;
 
     document.getElementById('liveSubjects').textContent = cntS;
     document.getElementById('liveGreetings').textContent = cntG;
+    document.getElementById('liveOptOut').textContent = cntO;
     document.getElementById('liveClosings').textContent = cntC;
     document.getElementById('liveDevices').textContent = cntD;
     document.getElementById('liveTotal').textContent = total.toLocaleString('sk-SK');
@@ -1641,22 +1792,26 @@ function updateVariantCounter() {
 
     const daysBeforeRepeat = Math.floor(total / 5); // priemer 5 emailov/deň (systém posiela 1–10 náhodne)
 
+    const repeatLabel = daysBeforeRepeat >= 365
+        ? `~${Math.round(daysBeforeRepeat / 365)} rokov`
+        : `~${daysBeforeRepeat} dní`;
+
     if (total >= MONTHLY_MAX_EMAILS) {
         badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-green-50 text-green-700';
         msg.className   = 'text-xs mt-1.5 text-green-600';
-        msg.textContent = `✅ V poriadku — ${total.toLocaleString('sk-SK')} variant · email sa zopakuje raz za ~${daysBeforeRepeat} dní.`;
+        msg.textContent = `✅ V poriadku — ${total.toLocaleString('sk-SK')} variant · email sa zopakuje raz za ${repeatLabel}.`;
     } else if (total >= 50) {
         badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-yellow-50 text-yellow-700';
         msg.className   = 'text-xs mt-1.5 text-yellow-600';
-        msg.textContent = `⚠️ Môže sa opakovať — email sa zopakuje raz za ~${daysBeforeRepeat} dní. Odporúčame aspoň ${MONTHLY_MAX_EMAILS} variant.`;
+        msg.textContent = `⚠️ Môže sa opakovať — email sa zopakuje raz za ${repeatLabel}. Odporúčame aspoň ${MONTHLY_MAX_EMAILS} variant.`;
     } else {
         badge.className = 'text-xs font-bold px-3 py-1 rounded-full bg-red-50 text-red-600';
         msg.className   = 'text-xs mt-1.5 text-red-600';
-        msg.textContent = `🛑 Príliš málo variant — email sa zopakuje raz za ~${daysBeforeRepeat} dní. Odporúčame aspoň ${MONTHLY_MAX_EMAILS} variant.`;
+        msg.textContent = `🛑 Príliš málo variant — email sa zopakuje raz za ${repeatLabel}. Odporúčame aspoň ${MONTHLY_MAX_EMAILS} variant.`;
     }
 }
 
-['emailSubjects', 'emailGreetings', 'emailClosings', 'emailDevice'].forEach(id => {
+['emailSubjects', 'emailGreetings', 'emailClosings', 'emailDevice', 'emailOptOut'].forEach(id => {
     document.getElementById(id).addEventListener('input', updateVariantCounter);
 });
 
