@@ -48,15 +48,15 @@ const loginError = document.getElementById('loginError');
 const logoutBtn = document.getElementById('logoutBtn');
 
 const dashboardTab = document.getElementById('dashboardTab');
+const kontaktyTab = document.getElementById('kontaktyTab');
 const settingsTab = document.getElementById('settingsTab');
 const radyTab = document.getElementById('radyTab');
 const blacklistTab = document.getElementById('blacklistTab');
-const reportingTab = document.getElementById('reportingTab');
 const dashboardSection = document.getElementById('dashboardSection');
+const kontaktySection = document.getElementById('kontaktySection');
 const settingsSection = document.getElementById('settingsSection');
 const radySection = document.getElementById('radySection');
 const blacklistSection = document.getElementById('blacklistSection');
-const reportingSection = document.getElementById('reportingSection');
 
 const statSentToday = document.getElementById('statSentToday');
 const statRemaining = document.getElementById('statRemaining');
@@ -84,6 +84,8 @@ onAuthStateChanged(auth, (user) => {
         loginScreen.classList.add('hidden');
         mainApp.classList.remove('hidden');
         loadDashboard();
+        loadReporting();
+        loadResendStatus();
         loadContacts();
         loadSettings();
     } else {
@@ -265,8 +267,8 @@ blacklistTab.addEventListener('click', () => {
     switchTab('blacklist');
 });
 
-reportingTab.addEventListener('click', () => {
-    switchTab('reporting');
+kontaktyTab.addEventListener('click', () => {
+    switchTab('kontakty');
 });
 
 window.switchTab = function switchTab(tab) {
@@ -276,16 +278,23 @@ window.switchTab = function switchTab(tab) {
     });
 
     dashboardSection.classList.add('hidden');
+    kontaktySection.classList.add('hidden');
     settingsSection.classList.add('hidden');
     radySection.classList.add('hidden');
     blacklistSection.classList.add('hidden');
-    reportingSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
         dashboardTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         dashboardTab.classList.remove('text-gray-500');
         dashboardSection.classList.remove('hidden');
         loadDashboard();
+        loadReporting();
+        loadResendStatus();
+    } else if (tab === 'kontakty') {
+        kontaktyTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
+        kontaktyTab.classList.remove('text-gray-500');
+        kontaktySection.classList.remove('hidden');
+        loadContacts();
     } else if (tab === 'settings') {
         settingsTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         settingsTab.classList.remove('text-gray-500');
@@ -299,11 +308,54 @@ window.switchTab = function switchTab(tab) {
         blacklistTab.classList.remove('text-gray-500');
         blacklistSection.classList.remove('hidden');
         loadBlacklist();
-    } else if (tab === 'reporting') {
-        reportingTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
-        reportingTab.classList.remove('text-gray-500');
-        reportingSection.classList.remove('hidden');
-        loadReporting();
+    }
+}
+
+async function loadResendStatus() {
+    try {
+        const getResendStatus = httpsCallable(functions, 'getResendStatus');
+        const result = await getResendStatus();
+        const { domain, credit } = result.data;
+
+        // Domain health
+        const badge = document.getElementById('domainStatusBadge');
+        const nameEl = document.getElementById('domainName');
+        const statusText = document.getElementById('domainStatusText');
+        if (nameEl) nameEl.textContent = domain.name || '—';
+        const rep = (domain.reputation || '').toLowerCase();
+        const statusMap = {
+            healthy:  { label: '🟢 Healthy',  cls: 'bg-green-100 text-green-700' },
+            low:      { label: '🟡 Low',       cls: 'bg-yellow-100 text-yellow-700' },
+            critical: { label: '🔴 Critical',  cls: 'bg-red-100 text-red-700' },
+        };
+        const s = statusMap[rep] || { label: domain.reputation || '—', cls: 'bg-gray-100 text-gray-500' };
+        if (badge) { badge.textContent = s.label; badge.className = `text-xs font-semibold px-2 py-1 rounded-full ${s.cls}`; }
+        if (statusText) {
+            const verified = domain.status === 'verified' ? 'Verified' : domain.status;
+            statusText.textContent = `${verified} · Resend`;
+        }
+
+        // Monthly credit
+        const sentMonth = credit.sentThisMonth || 0;
+        const sentToday = credit.sentToday || 0;
+        const monthlyLimit = credit.monthlyLimit || 3000;
+        const remaining = monthlyLimit - sentMonth;
+        const pct = Math.min(100, Math.round((sentMonth / monthlyLimit) * 100));
+
+        const sentMonthEl = document.getElementById('creditSentMonth');
+        const sentTodayEl = document.getElementById('creditSentToday');
+        const remainingEl = document.getElementById('creditRemaining');
+        const bar = document.getElementById('creditBar');
+
+        if (sentMonthEl) sentMonthEl.textContent = sentMonth;
+        if (sentTodayEl) sentTodayEl.textContent = sentToday;
+        if (remainingEl) remainingEl.textContent = remaining;
+        if (bar) {
+            bar.style.width = pct + '%';
+            bar.className = `h-2 rounded-full transition-all duration-500 ${pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-500' : 'bg-indigo-500'}`;
+        }
+    } catch (e) {
+        console.error('loadResendStatus error:', e);
     }
 }
 

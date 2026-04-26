@@ -944,3 +944,120 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
     dailyActivity: dailyMap,
   };
 });
+
+export const domainHealthCheck = functions.pubsub.schedule("every 6 hours").onRun(async () => {
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  if (!smtpDoc.exists) return;
+
+  const smtp = smtpDoc.data() as SmtpSettings;
+  if (!smtp.resendApiKey || !smtp.user) return;
+
+  let reputation = "unknown";
+  let domainName = "";
+  try {
+    const resendClient = new Resend(smtp.resendApiKey);
+    const { data: domainsData, error } = await resendClient.domains.list();
+    if (!error && domainsData?.data?.length) {
+      const domain = domainsData.data[0];
+      reputation = (domain as any).reputation || "healthy";
+      domainName = domain.name || "";
+    }
+  } catch (e) {
+    console.error("domainHealthCheck: Resend API error", e);
+    return;
+  }
+
+  if (reputation === "healthy") {
+    await db.collection("settings").doc("domainHealth").set({ alertSent: false, reputation, checkedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return;
+  }
+
+  // Non-healthy — pause campaign + send alert (max once per degraded period)
+  const healthDoc = await db.collection("settings").doc("domainHealth").get();
+  if (healthDoc.exists && healthDoc.data()?.alertSent === true) return;
+
+  // Pause the campaign
+  const campaignDoc = await db.collection("settings").doc("campaign").get();
+  const wasActive = campaignDoc.exists && campaignDoc.data()?.active === true;
+  if (wasActive) {
+    await db.collection("settings").doc("campaign").update({ active: false });
+    console.log(`domainHealthCheck: campaign paused due to reputation=${reputation}`);
+  }
+
+  const fromAddr = smtp.resendFrom || smtp.from || smtp.user;
+  const repLabel = reputation === "low" ? "⚠️ Nízka (Low)" : "🔴 Kritická (Critical)";
+  const campaignNote = wasActive
+    ? "\n\nKampaň bola automaticky POZASTAVENÁ. Spustite ju znovu manuálne v EMIL až po obnovení reputácie."
+    : "";
+  await sendMail(smtp, {
+    from: fromAddr,
+    to: smtp.user,
+    subject: `EMIL Alert: Reputácia domény ${domainName} klesla — kampaň pozastavená`,
+    text: `Dobrý deň,\n\nReputácia vašej domény ${domainName} v Resende klesla na: ${repLabel}.${campaignNote}\n\nSkontrolujte Resend dashboard a reporting v EMIL.\n\nEMIL`,
+  });
+
+  await db.collection("settings").doc("domainHealth").set({ alertSent: true, reputation, campaignPaused: wasActive, checkedAt: admin.firestore.FieldValue.serverTimestamp() });
+  console.log(`domainHealthCheck: alert sent for ${domainName} (${reputation}), campaignPaused=${wasActive}`);
+});
+
+export const getResendStatus = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
+
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  if (!smtpDoc.exists) throw new functions.https.HttpsError("not-found", "Settings not configured");
+
+  const smtp = smtpDoc.data() as SmtpSettings;
+  if (!smtp.resendApiKey) throw new functions.https.HttpsError("failed-precondition", "Resend API key not set");
+
+  // Fetch domain list from Resend API
+  let domainStatus: string = "unknown";
+  let domainReputation: string = "unknown";
+  let domainName: string = "";
+  try {
+    const resendClient = new Resend(smtp.resendApiKey);
+    const { data: domainsData, error } = await resendClient.domains.list();
+    if (!error && domainsData && domainsData.data && domainsData.data.length > 0) {
+      const domain = domainsData.data[0];
+      domainStatus = domain.status || "unknown";
+      domainReputation = (domain as any).reputation || "healthy";
+      domainName = domain.name || "";
+    }
+  } catch (e) {
+    console.error("Resend domain fetch error:", e);
+  }
+
+  // Count emails sent this calendar month from Firestore
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const contactsSnap = await db.collection("contacts").get();
+
+  let sentThisMonth = 0;
+  let sentToday = 0;
+  const todayStr = now.toISOString().slice(0, 10);
+  const monthStartMs = monthStart.getTime();
+
+  contactsSnap.forEach(doc => {
+    const d = doc.data();
+    if (!d.sent || !d.sentAt) return;
+    const sentMs = d.sentAt.toMillis ? d.sentAt.toMillis() : 0;
+    if (sentMs >= monthStartMs) {
+      sentThisMonth++;
+      const dayStr = new Date(sentMs).toISOString().slice(0, 10);
+      if (dayStr === todayStr) sentToday++;
+    }
+  });
+
+  return {
+    domain: {
+      name: domainName,
+      status: domainStatus,
+      reputation: domainReputation,
+    },
+    credit: {
+      sentThisMonth,
+      sentToday,
+      monthlyLimit: 3000,
+      dailyLimit: 100,
+    },
+  };
+});
