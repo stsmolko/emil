@@ -47,18 +47,19 @@ interface SendMailOptions {
   text: string;
 }
 
-const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<void> => {
+const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<string | null> => {
   if (smtp.provider === "resend") {
     if (!smtp.resendApiKey) throw new Error("Resend API kľúč nie je nastavený");
     const resend = new Resend(smtp.resendApiKey);
     const fromAddr = smtp.resendFrom || smtp.from || smtp.user;
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddr,
       to: options.to,
       subject: options.subject,
       text: options.text,
     });
     if (error) throw new Error(`Resend error: ${error.message}`);
+    return data?.id || null;
   } else {
     const transporter = nodemailer.createTransport({
       host: smtp.host,
@@ -72,6 +73,7 @@ const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<v
       subject: options.subject,
       text: options.text,
     });
+    return null;
   }
 };
 
@@ -505,7 +507,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     const textBody = parts.join("\n\n");
 
     const fromAddr = smtpSettings.resendFrom || smtpSettings.from || smtpSettings.user;
-    await sendMail(smtpSettings, {
+    const resendEmailId = await sendMail(smtpSettings, {
       from: fromAddr,
       to: contactData.email,
       subject: subject,
@@ -517,6 +519,8 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
       subject: subject,
       lastEmailBody: textBody,
+      deliveryStatus: "sent",
+      ...(resendEmailId ? { resendEmailId } : {}),
     });
 
     // Update stats with timestamp of last sent email
@@ -810,6 +814,20 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
     }
   }
 
+  // Delivered — aktualizuj stav doručenia
+  if (eventType === "email.delivered") {
+    try {
+      const contactSnap = await db.collection("contacts")
+        .where("email", "==", emailLower).limit(1).get();
+      if (!contactSnap.empty) {
+        await contactSnap.docs[0].ref.update({ deliveryStatus: "delivered" });
+      }
+      console.log(`Resend delivered: ${emailLower}`);
+    } catch (err) {
+      console.error("Webhook delivered update error:", err);
+    }
+  }
+
   // Spam complaint — príjemca označil ako spam → blacklist
   if (eventType === "email.complained") {
     try {
@@ -835,4 +853,94 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
   }
 
   res.status(200).send("ok");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPORTING STATS
+// ─────────────────────────────────────────────────────────────────────────────
+export const getReportingStats = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
+
+  const contactsSnap = await db.collection("contacts").get();
+  const blacklistSnap = await db.collection("blacklist").get();
+
+  const now = Date.now();
+  const day30ago = now - 30 * 24 * 60 * 60 * 1000;
+
+  let totalSent = 0;
+  let delivered = 0;
+  let hardBounce = 0;
+  let softBounce = 0;
+  let complaint = 0;
+  const subjectMap: Record<string, { sent: number; delivered: number; bounced: number }> = {};
+  const dailyMap: Record<string, number> = {};
+
+  contactsSnap.forEach(doc => {
+    const d = doc.data();
+    if (!d.sent) return;
+
+    totalSent++;
+
+    // Delivery status
+    if (d.deliveryStatus === "delivered") delivered++;
+    else if (d.deliveryStatus === "bounced") hardBounce++;
+    else if (d.deliveryStatus === "complained") complaint++;
+    else if ((d.softBounceCount || 0) > 0) softBounce++;
+
+    // Per subject stats
+    const subj: string = d.subject || "(bez predmetu)";
+    if (!subjectMap[subj]) subjectMap[subj] = { sent: 0, delivered: 0, bounced: 0 };
+    subjectMap[subj].sent++;
+    if (d.deliveryStatus === "delivered") subjectMap[subj].delivered++;
+    if (d.deliveryStatus === "bounced") subjectMap[subj].bounced++;
+
+    // 30-day daily activity
+    if (d.sentAt) {
+      const sentMs = d.sentAt.toMillis ? d.sentAt.toMillis() : 0;
+      if (sentMs >= day30ago) {
+        const dateKey = new Date(sentMs).toISOString().slice(0, 10);
+        dailyMap[dateKey] = (dailyMap[dateKey] || 0) + 1;
+      }
+    }
+  });
+
+  // Blacklist breakdown
+  let blacklistBounce = 0;
+  let blacklistComplaint = 0;
+  let blacklistManual = 0;
+  blacklistSnap.forEach(doc => {
+    const t = doc.data().type || "";
+    if (t === "hard_bounce") blacklistBounce++;
+    else if (t === "spam_complaint") blacklistComplaint++;
+    else blacklistManual++;
+  });
+
+  // Subject list sorted by sent desc
+  const subjects = Object.entries(subjectMap)
+    .map(([subject, s]) => ({
+      subject,
+      sent: s.sent,
+      delivered: s.delivered,
+      bounced: s.bounced,
+      successRate: s.sent > 0 ? Math.round((s.delivered / s.sent) * 100) : null,
+    }))
+    .sort((a, b) => b.sent - a.sent);
+
+  const deliveryRate = totalSent > 0 ? Math.round((delivered / totalSent) * 100) : null;
+  const bounceRate = totalSent > 0 ? +((hardBounce / totalSent) * 100).toFixed(2) : null;
+  const complaintRate = totalSent > 0 ? +((complaint / totalSent) * 100).toFixed(2) : null;
+
+  return {
+    totalSent,
+    delivered,
+    hardBounce,
+    softBounce,
+    complaint,
+    deliveryRate,
+    bounceRate,
+    complaintRate,
+    blacklist: { bounce: blacklistBounce, complaint: blacklistComplaint, manual: blacklistManual },
+    subjects,
+    dailyActivity: dailyMap,
+  };
 });

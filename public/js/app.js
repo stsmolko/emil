@@ -51,10 +51,12 @@ const dashboardTab = document.getElementById('dashboardTab');
 const settingsTab = document.getElementById('settingsTab');
 const radyTab = document.getElementById('radyTab');
 const blacklistTab = document.getElementById('blacklistTab');
+const reportingTab = document.getElementById('reportingTab');
 const dashboardSection = document.getElementById('dashboardSection');
 const settingsSection = document.getElementById('settingsSection');
 const radySection = document.getElementById('radySection');
 const blacklistSection = document.getElementById('blacklistSection');
+const reportingSection = document.getElementById('reportingSection');
 
 const statSentToday = document.getElementById('statSentToday');
 const statRemaining = document.getElementById('statRemaining');
@@ -263,6 +265,10 @@ blacklistTab.addEventListener('click', () => {
     switchTab('blacklist');
 });
 
+reportingTab.addEventListener('click', () => {
+    switchTab('reporting');
+});
+
 window.switchTab = function switchTab(tab) {
     document.querySelectorAll('.nav-tab').forEach(btn => {
         btn.classList.remove('border-b-2', 'border-primary', 'text-gray-900');
@@ -273,6 +279,7 @@ window.switchTab = function switchTab(tab) {
     settingsSection.classList.add('hidden');
     radySection.classList.add('hidden');
     blacklistSection.classList.add('hidden');
+    reportingSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
         dashboardTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
@@ -292,6 +299,95 @@ window.switchTab = function switchTab(tab) {
         blacklistTab.classList.remove('text-gray-500');
         blacklistSection.classList.remove('hidden');
         loadBlacklist();
+    } else if (tab === 'reporting') {
+        reportingTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
+        reportingTab.classList.remove('text-gray-500');
+        reportingSection.classList.remove('hidden');
+        loadReporting();
+    }
+}
+
+async function loadReporting() {
+    try {
+        const getReportingStats = httpsCallable(functions, 'getReportingStats');
+        const result = await getReportingStats();
+        const s = result.data;
+
+        // Summary cards
+        document.getElementById('repTotalSent').textContent = s.totalSent;
+        document.getElementById('repDelivered').textContent = s.delivered;
+
+        const bounceEl = document.getElementById('repBounceRate');
+        bounceEl.textContent = s.bounceRate !== null ? s.bounceRate + '%' : '—';
+        bounceEl.className = 'text-3xl font-bold ' + (s.bounceRate > 2 ? 'text-red-600' : s.bounceRate > 0 ? 'text-yellow-500' : 'text-green-600');
+
+        const delivEl = document.getElementById('repDeliveryRate');
+        delivEl.textContent = s.deliveryRate !== null ? s.deliveryRate + '%' : '—';
+        delivEl.className = 'text-3xl font-bold ' + (s.deliveryRate >= 95 ? 'text-green-600' : s.deliveryRate >= 85 ? 'text-yellow-500' : 'text-red-600');
+
+        // Blacklist
+        document.getElementById('repBlBounce').textContent = s.blacklist.bounce;
+        document.getElementById('repBlComplaint').textContent = s.blacklist.complaint;
+        document.getElementById('repBlManual').textContent = s.blacklist.manual;
+
+        // 30-day chart
+        const chartEl = document.getElementById('rep30DayChart');
+        const labelsEl = document.getElementById('rep30DayLabels');
+        chartEl.innerHTML = '';
+        labelsEl.innerHTML = '';
+        const days = [];
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            days.push(d.toISOString().slice(0, 10));
+        }
+        const maxVal = Math.max(...days.map(d => s.dailyActivity[d] || 0), 1);
+        days.forEach((d, idx) => {
+            const val = s.dailyActivity[d] || 0;
+            const heightPct = Math.round((val / maxVal) * 100);
+            const bar = document.createElement('div');
+            bar.className = 'flex-1 rounded-t transition-all';
+            bar.style.height = heightPct + '%';
+            bar.style.minHeight = val > 0 ? '4px' : '2px';
+            bar.style.backgroundColor = val > 0 ? '#6366f1' : '#e5e7eb';
+            bar.title = `${d}: ${val} emailov`;
+            chartEl.appendChild(bar);
+
+            // Label každý 5. deň
+            const lbl = document.createElement('div');
+            lbl.className = 'flex-1 text-center overflow-hidden';
+            lbl.style.fontSize = '9px';
+            lbl.textContent = (idx % 5 === 0) ? d.slice(5) : '';
+            labelsEl.appendChild(lbl);
+        });
+
+        // Reputation Watchdog table
+        const tbody = document.getElementById('repSubjectTable');
+        tbody.innerHTML = '';
+        if (!s.subjects.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-xs text-gray-400">Žiadne dáta</td></tr>';
+        } else {
+            const avgSuccess = s.subjects.reduce((a, b) => a + (b.successRate || 0), 0) / s.subjects.length;
+            s.subjects.forEach(sub => {
+                const isWarning = sub.successRate !== null && sub.successRate < avgSuccess * 0.8 && sub.sent >= 3;
+                const row = document.createElement('tr');
+                row.className = isWarning ? 'bg-red-50' : '';
+                const rateColor = sub.successRate === null ? 'text-gray-400' : sub.successRate >= 90 ? 'text-green-600' : sub.successRate >= 70 ? 'text-yellow-600' : 'text-red-600';
+                row.innerHTML = `
+                    <td class="py-2 pr-4 text-xs text-gray-700 max-w-xs truncate" title="${sub.subject}">
+                        ${isWarning ? '⚠️ ' : ''}${sub.subject}
+                    </td>
+                    <td class="py-2 px-2 text-xs text-right text-gray-600">${sub.sent}</td>
+                    <td class="py-2 px-2 text-xs text-right text-green-600">${sub.delivered}</td>
+                    <td class="py-2 px-2 text-xs text-right text-red-500">${sub.bounced}</td>
+                    <td class="py-2 pl-2 text-xs text-right font-semibold ${rateColor}">
+                        ${sub.successRate !== null ? sub.successRate + '%' : '—'}
+                    </td>`;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (err) {
+        console.error('Reporting error:', err);
     }
 }
 
