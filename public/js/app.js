@@ -1306,7 +1306,7 @@ function subjectBodyOverlap(subject, body) {
     return matches / subWords.size;
 }
 
-function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) {
+function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false, checkLength = true) {
     const original = stripSpintax(text);
     const lower = original.toLowerCase();
     const issues = [];
@@ -1314,17 +1314,9 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
     const good = [];
     let penalty = 0;
 
-    // 0a. Emoji — len pre predmety (checkEmoji = true)
-    if (checkEmoji) {
-        if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(original)) {
-            issues.push(`Emoji v predmete — spam filtre to penalizujú (+2 body)`);
-            penalty += 2;
-        } else {
-            good.push('Bez emoji v predmete');
-        }
-    }
+    // ── SPOLOČNÉ KONTROLY ──────────────────────────
 
-    // 0. Vulgárne slová — word boundary regex (\b) aby "hokejka" nespúšťala alert
+    // 1. Vulgárne slová
     const foundHard = VULGAR_LIST.HARD.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(original));
     const foundSoft = VULGAR_LIST.SOFT.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(original));
     if (foundHard.length > 0) {
@@ -1335,8 +1327,11 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         warnings.push(`Neprofesionálne výrazy: <strong>${foundSoft.join(', ')}</strong> — zvážte preformulovanie`);
         penalty += 3;
     }
+    if (foundHard.length === 0 && foundSoft.length === 0) {
+        good.push('Bez vulgárnych slov');
+    }
 
-    // 1. Hustota spamových slov
+    // 2. Spamové slová
     const totalWords = wordCount(original);
     const foundSpam = [...new Set(SPAM_WORDS.filter(w => lower.includes(w.toLowerCase())))];
     if (foundSpam.length > 0) {
@@ -1352,7 +1347,7 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         good.push('Žiadne spamové slová');
     }
 
-    // 2. ALL CAPS (ignoruj technické skratky)
+    // 3. ALL CAPS (ignoruj technické skratky)
     let capsText = original;
     TECHNICAL_CAPS.forEach(abbr => {
         capsText = capsText.replace(new RegExp(`\\b${abbr}\\b`, 'g'), '');
@@ -1362,10 +1357,10 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         issues.push(`ALL CAPS pasáže: <strong>${capsMatches.join(', ')}</strong>`);
         penalty += 2;
     } else {
-        good.push('Žiadne ALL CAPS');
+        good.push('Žiadne ALL CAPS (veľké písmená)');
     }
 
-    // 3. Výkričníky
+    // 4. Výkričníky
     const exclamations = (original.match(/!/g) || []).length;
     if (exclamations > 2) {
         issues.push(`Príliš veľa výkričníkov: <strong>${exclamations}×</strong> — max 1`);
@@ -1377,20 +1372,7 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         good.push('Výkričníky v poriadku');
     }
 
-    // 4. Kombinovaná interpunkcia
-    if (/[?!]{2,}/.test(original)) {
-        issues.push('Kombinovaná interpunkcia: <strong>?! alebo !?</strong>');
-        penalty += 1;
-    }
-
-    // 4b. Číslo/mena + výkričník (100 €!, 50%!, 9.99$!)
-    const moneyExclaim = original.match(/[\d,.]+\s*[€$£%]\s*!|[€$£]\s*[\d,.]+\s*!/g) || [];
-    if (moneyExclaim.length > 0) {
-        issues.push(`Mena + výkričník: <strong>${moneyExclaim.join(', ')}</strong> — typický znak agresívneho marketingu`);
-        penalty += 2;
-    }
-
-    // 5. URL skracovače
+    // 5. Skrátené URL
     if (/bit\.ly|tinyurl|goo\.gl|t\.co/i.test(original)) {
         issues.push('Skrátená URL: <strong>bit.ly / tinyurl</strong> — použite plnú adresu webu');
         penalty += 3;
@@ -1398,7 +1380,56 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         good.push('Žiadne skrátené URL');
     }
 
-    // 6. Počet URL (max 1 v plain texte)
+    // 6. Špeciálne symboly
+    const symbols = original.match(SPECIAL_SYMBOLS) || [];
+    if (symbols.length > 0) {
+        issues.push(`Špeciálne symboly: <strong>${symbols.join(' ')}</strong>`);
+        penalty += 2;
+    } else {
+        good.push('Žiadne problematické symboly (€€, $$...)');
+    }
+
+    // ── UNIKÁTNE KONTROLY ──────────────────────────
+
+    // 7. Emoji (len pre sekcie s checkEmoji)
+    const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu;
+    if (checkEmoji === true) {
+        if (emojiRegex.test(original)) {
+            issues.push(`Emoji v predmete — spam filtre to penalizujú (+2 body)`);
+            penalty += 2;
+        } else {
+            good.push('Bez emoji');
+        }
+    } else if (checkEmoji === 'limited') {
+        const emojiMatches = original.match(emojiRegex) || [];
+        if (emojiMatches.length > 2) {
+            issues.push(`Príliš veľa emoji: <strong>${emojiMatches.length}×</strong> — max 2 (+1 bod)`);
+            penalty += 1;
+        } else if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]{2}/u.test(original)) {
+            warnings.push(`Emoji za sebou — oddeľte ich textom`);
+        } else if (emojiMatches.length > 0) {
+            good.push(`Emoji v poriadku (${emojiMatches.length}×, max 2)`);
+        } else {
+            good.push('Bez emoji');
+        }
+    }
+
+    // 8. Kombinovaná interpunkcia
+    if (/[?!]{2,}/.test(original)) {
+        issues.push('Kombinovaná interpunkcia: <strong>?! alebo !?</strong>');
+        penalty += 1;
+    }
+
+    // 9. Mena + výkričník (100 €!, 50%!, 9.99$!)
+    const moneyExclaim = original.match(/[\d,.]+\s*[€$£%]\s*!|[€$£]\s*[\d,.]+\s*!/g) || [];
+    if (moneyExclaim.length > 0) {
+        issues.push(`Mena + výkričník: <strong>${moneyExclaim.join(', ')}</strong> — typický znak agresívneho marketingu`);
+        penalty += 2;
+    } else {
+        good.push('Žiadne agresívne cenové výrazy (100€!, 50%!...)');
+    }
+
+    // 10. Počet URL (max 1 v plain texte)
     const urls = extractUrls(original);
     const uniqueUrls = [...new Set(urls)];
     if (uniqueUrls.length > 1) {
@@ -1408,40 +1439,21 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         good.push(`1 URL odkaz — v poriadku`);
     }
 
-    // 6b. IP adresa v URL
+    // 11. IP adresa v URL
     if (/https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/i.test(original)) {
         issues.push('IP adresa v odkaze: <strong>http://192.168...</strong> — použite doménu (napr. naly.sk)');
         penalty += 3;
+    } else {
+        good.push('Žiadne IP adresy v odkazoch');
     }
 
-    // 7. Tracking parametre
+    // 12. Tracking parametre
     if (/utm_source|utm_medium|utm_campaign|fbclid|gclid/i.test(original)) {
         issues.push('Tracking parametre v URL: <strong>utm_source / fbclid</strong> — odstrániť');
         penalty += 2;
     }
 
-    // 8. Dĺžka textu (Goldilocks)
-    const len = original.replace(/\s+/g, ' ').trim().length;
-    if (len < 100) {
-        warnings.push(`Príliš krátky text: <strong>${len} znakov</strong> — odporúčame 200–800`);
-        penalty += 1;
-    } else if (len > 1500) {
-        warnings.push(`Príliš dlhý text: <strong>${len} znakov</strong> — odporúčame max 800`);
-        penalty += 1;
-    } else if (len >= 200 && len <= 800) {
-        good.push(`Ideálna dĺžka: ${len} znakov`);
-    } else {
-        good.push(`Dĺžka textu: ${len} znakov`);
-    }
-
-    // 9. Špeciálne symboly
-    const symbols = original.match(SPECIAL_SYMBOLS) || [];
-    if (symbols.length > 0) {
-        issues.push(`Špeciálne symboly: <strong>${symbols.join(' ')}</strong>`);
-        penalty += 2;
-    }
-
-    // 10. Subject-body overlap (len pre body)
+    // 13. Subject-body overlap (len pre body)
     if (subjectForOverlap) {
         const overlap = subjectBodyOverlap(subjectForOverlap, original);
         if (overlap > 0.7) {
@@ -1450,6 +1462,24 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false) 
         } else if (overlap > 0.5) {
             warnings.push(`Predmet a telo emailu sa čiastočne opakujú (<strong>${Math.round(overlap * 100)}% zhoda</strong>)`);
             penalty += 1;
+        }
+    }
+
+    // ── DĹŽKA (vždy na konci) ──────────────────────
+
+    // 14. Dĺžka textu
+    if (checkLength) {
+        const len = original.replace(/\s+/g, ' ').trim().length;
+        if (len < 100) {
+            warnings.push(`Príliš krátky text: <strong>${len} znakov</strong> — odporúčame 200–800`);
+            penalty += 1;
+        } else if (len > 1500) {
+            warnings.push(`Príliš dlhý text: <strong>${len} znakov</strong> — odporúčame max 800`);
+            penalty += 1;
+        } else if (len >= 200 && len <= 800) {
+            good.push(`Ideálna dĺžka: ${len} znakov`);
+        } else {
+            good.push(`Dĺžka textu: ${len} znakov`);
         }
     }
 
@@ -1494,7 +1524,9 @@ function analyzeFromName(name) {
         return { html, score: 10 };
     }
 
-    // 0. Vulgarizmy — HARD (+20) a SOFT (+3)
+    // ── SPOLOČNÉ KONTROLY ──────────────────────────
+
+    // 1. Vulgárne slová
     const foundHardFrom = VULGAR_LIST.HARD.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(name));
     const foundSoftFrom = VULGAR_LIST.SOFT.filter(w => new RegExp(`\\b${w}\\b`, 'i').test(name));
     if (foundHardFrom.length > 0) {
@@ -1509,25 +1541,7 @@ function analyzeFromName(name) {
         good.push('Bez vulgárnych slov');
     }
 
-    // 1. Caps Lock (+2) — celé slovo veľkými, ignoruj skratky do 4 znakov
-    const words = name.trim().split(/\s+/);
-    const capsWords = words.filter(w => w.length > 3 && w === w.toUpperCase() && /[A-ZÁÄČĎÉÍĽĹŇÓÔŔŠŤÚÝŽ]/.test(w));
-    if (capsWords.length > 0) {
-        issues.push(`Caps Lock v mene: <strong>${capsWords.join(', ')}</strong> — +2 body spamu`);
-        penalty += 2;
-    } else {
-        good.push('Bez Caps Lock');
-    }
-
-    // 2. Emoji (+2)
-    if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(name)) {
-        issues.push(`Emoji v mene odosielateľa — +2 body spamu`);
-        penalty += 2;
-    } else {
-        good.push('Bez emoji');
-    }
-
-    // 3. Spam/clickbait slová (+2 za slovo)
+    // 2. Spamové slová
     const FROM_SPAM = [
         'akcia', 'zdarma', 'free', 'výhra', 'súrne', 'surne', 'urgentné', 'urgentne',
         'zľava', 'sleva', 'promo', 'bonus', 'win', 'offer', 'sale', 'discount',
@@ -1541,11 +1555,38 @@ function analyzeFromName(name) {
             penalty += 2;
         });
     } else {
-        good.push('Bez clickbait slov');
+        good.push('Žiadne spamové slová');
     }
 
-    // 4. Špeciálne znaky: $, %, !, [, *, # (+2)
-    const specialMatch = name.match(/[$%![\]*#@<>"]/g);
+    // 3. ALL CAPS — celé slovo veľkými, ignoruj skratky do 4 znakov
+    const words = name.trim().split(/\s+/);
+    const capsWords = words.filter(w => w.length > 3 && w === w.toUpperCase() && /[A-ZÁÄČĎÉÍĽĹŇÓÔŔŠŤÚÝŽ]/.test(w));
+    if (capsWords.length > 0) {
+        issues.push(`Caps Lock v mene: <strong>${capsWords.join(', ')}</strong> — +2 body spamu`);
+        penalty += 2;
+    } else {
+        good.push('Žiadne ALL CAPS (veľké písmená)');
+    }
+
+    // 4. Výkričníky
+    const fromExclamations = (name.match(/!/g) || []).length;
+    if (fromExclamations > 0) {
+        issues.push(`Výkričník v mene odosielateľa — +2 body spamu`);
+        penalty += 2;
+    } else {
+        good.push('Výkričníky v poriadku');
+    }
+
+    // 5. Skrátené URL
+    if (/bit\.ly|tinyurl|goo\.gl|t\.co/i.test(name)) {
+        issues.push('Skrátená URL v mene odosielateľa — použite plnú adresu');
+        penalty += 2;
+    } else {
+        good.push('Žiadne skrátené URL');
+    }
+
+    // 6. Špeciálne znaky: $, %, [, *, # (+2) — ! je pokryté výkričníkmi
+    const specialMatch = name.match(/[$%[\]*#@<>"]/g);
     if (specialMatch) {
         const unique = [...new Set(specialMatch)];
         issues.push(`Špeciálne znaky v mene: <strong>${unique.join(' ')}</strong> — +2 body`);
@@ -1554,7 +1595,19 @@ function analyzeFromName(name) {
         good.push('Bez špeciálnych znakov');
     }
 
-    // 5. Dĺžka
+    // ── UNIKÁTNE KONTROLY ──────────────────────────
+
+    // 7. Emoji
+    if (/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(name)) {
+        issues.push(`Emoji v mene odosielateľa — +2 body spamu`);
+        penalty += 2;
+    } else {
+        good.push('Bez emoji');
+    }
+
+    // ── DĹŽKA (vždy na konci) ──────────────────────
+
+    // 8. Dĺžka mena
     if (name.length > 50) {
         warnings.push(`Meno je príliš dlhé: <strong>${name.length} znakov</strong> — max 50`);
         penalty += 1;
@@ -1562,7 +1615,7 @@ function analyzeFromName(name) {
         good.push(`Dĺžka mena v poriadku (${name.length} znakov)`);
     }
 
-    // 6. Doporučenie formátu mena
+    // 9. Doporučenie formátu mena
     const fromEmailVal = document.getElementById('resendFromEmail')?.value.trim() || '';
     const domain = fromEmailVal.split('@')[1] || '';
     const hasFirstName = /^[A-ZÁÄČĎÉÍĽĹŇÓÔŔŠŤÚÝŽ][a-záäčďéíľĺňóôŕšťúýž]+/.test(name.trim());
@@ -1619,10 +1672,21 @@ function updateSaveButton() {
 }
 
 document.getElementById('spamCheckBtn').addEventListener('click', () => {
+    const btn = document.getElementById('spamCheckBtn');
+    const resultsEl = document.getElementById('spamResults');
+
+    if (!resultsEl.classList.contains('hidden')) {
+        resultsEl.classList.add('hidden');
+        btn.textContent = '🔍 Skontrolovať';
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+
     const fromName = document.getElementById('resendFromName')?.value.trim() || '';
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const body = document.getElementById('emailBody').value.trim();
     const closings = splitEntries(document.getElementById('emailClosings').value);
+    const devices = splitEntries(document.getElementById('emailDevice').value);
 
     if (!fromName && !subjects.length && !body && !closings.length) {
         alert('Najprv vyplňte aspoň jedno pole.');
@@ -1637,7 +1701,7 @@ document.getElementById('spamCheckBtn').addEventListener('click', () => {
         : { html: '<p class="text-xs text-gray-400 px-2">Žiadne predmety na kontrolu.</p>', score: 10 };
 
     const bodyResult = body
-        ? analyzeText(body, '✉️ Telo emailu', subjectText)
+        ? analyzeText(body, '✉️ Telo emailu', subjectText, 'limited')
         : { html: '<p class="text-xs text-gray-400 px-2">Žiadne telo emailu na kontrolu.</p>', score: 10 };
 
     const closingText = closings.join(' | ');
@@ -1645,15 +1709,29 @@ document.getElementById('spamCheckBtn').addEventListener('click', () => {
         ? analyzeText(closingText, '✌️ Ukončenia emailu')
         : { html: '<p class="text-xs text-gray-400 px-2">Žiadne ukončenia na kontrolu.</p>', score: 10 };
 
+    const optOutText = document.getElementById('emailOptOut').value.trim();
+    const optOutResult = optOutText
+        ? analyzeText(optOutText, '⚖️ Opt-out veta', null, false, false)
+        : { html: '<p class="text-xs text-gray-400 px-2">Žiadna opt-out veta na kontrolu.</p>', score: 10 };
+
+    const deviceText = devices.join(' | ');
+    const deviceResult = deviceText
+        ? analyzeText(deviceText, '📱 Odoslané z')
+        : { html: '<p class="text-xs text-gray-400 px-2">Žiadny podpis zariadenia na kontrolu.</p>', score: 10 };
+
     document.getElementById('spamFromResult').innerHTML = fromResult.html;
     document.getElementById('spamSubjectResult').innerHTML = subjectResult.html;
     document.getElementById('spamBodyResult').innerHTML = bodyResult.html;
     document.getElementById('spamClosingResult').innerHTML = closingResult.html;
-    document.getElementById('spamResults').classList.remove('hidden');
+    document.getElementById('spamOptOutResult').innerHTML = optOutResult.html;
+    document.getElementById('spamDeviceResult').innerHTML = deviceResult.html;
+    resultsEl.classList.remove('hidden');
+    btn.textContent = '✕ Zavrieť';
 
-    spamCheckPassed = fromResult.score > 0 && subjectResult.score > 0 && bodyResult.score > 0 && closingResult.score > 0;
+    spamCheckPassed = fromResult.score > 0 && subjectResult.score > 0 && bodyResult.score > 0 && closingResult.score > 0 && optOutResult.score > 0 && deviceResult.score > 0;
     updateSaveButton();
 });
+
 
 // ─────────────────────────────────────────────
 // EMAIL PREVIEW
@@ -1707,10 +1785,32 @@ function generatePreview() {
 
     const subject = clientParseSpintax(getRandomItem(subjects) || '(bez predmetu)');
     const greeting = clientParseSpintax(getRandomItem(greetings));
-    const resolvedBody = clientParseSpintax(body).replace(/\{\{name\}\}/g, 'Ján Novák');
+    const now = new Date();
+    const skDays = ['nedeľa','pondelok','utorok','streda','štvrtok','piatok','sobota'];
+    const skMonths = ['januára','februára','marca','apríla','mája','júna','júla','augusta','septembra','októbra','novembra','decembra'];
+    const dayName = skDays[now.getDay()];
+    const monthName = skMonths[now.getMonth()];
+    const weekNum = Math.ceil((((now - new Date(now.getFullYear(), 0, 1)) / 86400000) + new Date(now.getFullYear(), 0, 1).getDay() + 1) / 7);
+    const previewSender = (document.getElementById('resendFromName')?.value.trim() || 'Odosielateľ');
+    const previewDomain = (document.getElementById('resendFromEmail')?.value.trim() || '').split('@')[1] || 'domena.sk';
+    const previewVars = {
+        name: 'Ján Novák',
+        email: 'jan.novak@firma.sk',
+        date: `${dayName} ${now.getDate()}. ${monthName}`,
+        day: dayName,
+        month: monthName,
+        year: String(now.getFullYear()),
+        week: `${weekNum}. týždeň`,
+        sender: previewSender,
+        domain: previewDomain,
+    };
+    let resolvedBody = clientParseSpintax(body);
+    for (const [key, val] of Object.entries(previewVars)) {
+        resolvedBody = resolvedBody.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
+    }
     const closing = clientParseSpintax(getRandomItem(closings));
     const device = clientParseSpintax(getRandomItem([...devices, ''])).trim();
-    const optOut = document.getElementById('emailOptOut').value.trim();
+    const optOut = clientParseSpintax(document.getElementById('emailOptOut').value.trim());
 
     const parts = [
         ...(greeting.trim() ? [greeting.trim()] : []),
@@ -1720,6 +1820,10 @@ function generatePreview() {
         ...(device.trim() ? [device.trim()] : []),
     ];
 
+    const fromName = document.getElementById('resendFromName')?.value.trim() || '';
+    const fromEmail = document.getElementById('resendFromEmail')?.value.trim() || '';
+    const fromDisplay = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+    document.getElementById('previewFrom').textContent = fromDisplay || '(nenastavený odosielateľ)';
     document.getElementById('previewSubject').textContent = subject;
 
     // Zobraziť telo — podpis (device) vizuálne odlíšený kurzívou
@@ -1793,7 +1897,7 @@ function updateVariantCounter() {
     const daysBeforeRepeat = Math.floor(total / 5); // priemer 5 emailov/deň (systém posiela 1–10 náhodne)
 
     const repeatLabel = daysBeforeRepeat >= 365
-        ? `~${Math.round(daysBeforeRepeat / 365)} rokov`
+        ? `~${daysBeforeRepeat} dní (~${Math.round(daysBeforeRepeat / 365)} rokov)`
         : `~${daysBeforeRepeat} dní`;
 
     if (total >= MONTHLY_MAX_EMAILS) {

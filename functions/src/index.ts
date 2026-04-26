@@ -438,7 +438,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   await new Promise((resolve) => setTimeout(resolve, delay));
 
   try {
-    const subject = await getRandomSubject();
+    let subject = await getRandomSubject();
     const emailSettings = await db.collection("settings").doc("email").get();
     const greetings: string[] = emailSettings.data()?.greetings || [];
     const greeting = getRandomGreeting(greetings);
@@ -453,8 +453,33 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
     // Apply spintax to email body
     emailBody = parseSpintax(emailBody);
 
-    // Replace {{name}} placeholder
-    emailBody = emailBody.replace(/\{\{name\}\}/g, contactData.name);
+    // Replace template variables
+    const now = new Date();
+    const skDays = ["nedeľa","pondelok","utorok","streda","štvrtok","piatok","sobota"];
+    const skMonths = ["januára","februára","marca","apríla","mája","júna","júla","augusta","septembra","októbra","novembra","decembra"];
+    const dayName = skDays[now.getDay()];
+    const monthName = skMonths[now.getMonth()];
+    const dateStr = `${dayName} ${now.getDate()}. ${monthName}`;
+    const weekNum = Math.ceil((((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86400000) + new Date(now.getFullYear(), 0, 1).getDay() + 1) / 7);
+    const senderName = (smtpSettings.resendFrom || "").replace(/<[^>]+>/, "").trim() || smtpSettings.resendFrom || "";
+    const senderDomain = (smtpSettings.resendFrom || "").match(/@([^>]+)>/)?.[1] || "";
+
+    const replacements: Record<string, string> = {
+      name: contactData.name,
+      email: contactData.email,
+      date: dateStr,
+      day: dayName,
+      month: monthName,
+      year: String(now.getFullYear()),
+      week: `${weekNum}. týždeň`,
+      sender: senderName,
+      domain: senderDomain,
+    };
+
+    for (const [key, value] of Object.entries(replacements)) {
+      emailBody = emailBody.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+      subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+    }
 
     // Backend poistka — HARD vulgárne slová nesmú nikdy odísť
     const vulgarInSubject = containsHardVulgar(subject);
