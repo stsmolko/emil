@@ -763,3 +763,76 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
 
   return { success: true, to: smtp.user };
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESEND WEBHOOK — bounce & spam complaint auto-blacklist
+// ─────────────────────────────────────────────────────────────────────────────
+export const resendWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const event = req.body;
+  const eventType: string = event?.type || "";
+  const toList: string[] = event?.data?.to || [];
+  const recipientEmail: string = toList[0] || "";
+
+  if (!recipientEmail) {
+    res.status(400).send("Missing recipient");
+    return;
+  }
+
+  const emailLower = normalizeEmail(recipientEmail);
+
+  // Hard bounce — adresa neexistuje → blacklist
+  if (eventType === "email.bounced") {
+    try {
+      await db.collection("blacklist").doc(emailLower).set({
+        value: emailLower,
+        type: "hard_bounce",
+        reason: `Resend bounce: ${event?.data?.bounce?.message || "permanent failure"}`,
+        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      // Označ kontakt ako odoslaný (neposielajme znova)
+      const contactSnap = await db.collection("contacts")
+        .where("email", "==", emailLower).limit(1).get();
+      if (!contactSnap.empty) {
+        await contactSnap.docs[0].ref.update({
+          sent: true,
+          error: "Hard bounce — auto-blacklisted via Resend webhook",
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      console.log(`Resend bounce: ${emailLower} auto-blacklisted`);
+    } catch (err) {
+      console.error("Webhook blacklist error:", err);
+    }
+  }
+
+  // Spam complaint — príjemca označil ako spam → blacklist
+  if (eventType === "email.complained") {
+    try {
+      await db.collection("blacklist").doc(emailLower).set({
+        value: emailLower,
+        type: "spam_complaint",
+        reason: "Príjemca označil email ako spam (Resend complaint)",
+        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      const contactSnap = await db.collection("contacts")
+        .where("email", "==", emailLower).limit(1).get();
+      if (!contactSnap.empty) {
+        await contactSnap.docs[0].ref.update({
+          sent: true,
+          error: "Spam complaint — auto-blacklisted via Resend webhook",
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      console.log(`Resend complaint: ${emailLower} auto-blacklisted`);
+    } catch (err) {
+      console.error("Webhook complaint blacklist error:", err);
+    }
+  }
+
+  res.status(200).send("ok");
+});
