@@ -566,6 +566,13 @@
                             <p class="text-xs text-gray-500 mt-1">Na tento email dostanete notifikáciu o dokončení kampane a testovací email</p>
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Inbound adresa (Reply-To)</label>
+                            <input type="email" id="resendReplyTo"
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="reply@reply.vasadomena.sk">
+                            <p class="text-xs text-gray-500 mt-1">Ak nastavíš Resend Inbound, sem vlož inbound adresu — odpovede kontaktov sa automaticky označia ako ✋ Riešim osobne</p>
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Maximálny počet emailov za deň</label>
                             <input type="number" id="dailyLimitInput" min="1" max="50" value="10"
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"

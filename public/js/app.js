@@ -1166,6 +1166,7 @@ async function loadSettings() {
                 document.getElementById('resendFromEmail').value = resendFromRaw;
             }
             document.getElementById('resendNotifyEmail').value = data.user || '';
+            document.getElementById('resendReplyTo').value = data.resendReplyTo || '';
             document.getElementById('dailyLimitInput').value = data.dailyLimit || 10;
         }
         
@@ -1238,6 +1239,7 @@ smtpForm.addEventListener('submit', async (e) => {
     const resendFromEmail = document.getElementById('resendFromEmail').value.trim();
     const resendFrom = resendFromName ? `${resendFromName} <${resendFromEmail}>` : resendFromEmail;
     const user = document.getElementById('resendNotifyEmail').value.trim();
+    const resendReplyTo = document.getElementById('resendReplyTo').value.trim();
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const greetings = splitEntries(document.getElementById('emailGreetings').value);
@@ -1314,7 +1316,8 @@ smtpForm.addEventListener('submit', async (e) => {
             user,
             resendApiKey,
             resendFrom,
-            dailyLimit
+            dailyLimit,
+            ...(resendReplyTo ? { resendReplyTo } : {}),
         });
         
         await setDoc(doc(db, 'settings', 'email'), {

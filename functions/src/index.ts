@@ -38,6 +38,7 @@ interface SmtpSettings {
   provider?: "smtp" | "resend";
   resendApiKey?: string;
   resendFrom?: string;
+  resendReplyTo?: string;
 }
 
 interface SendMailOptions {
@@ -45,6 +46,7 @@ interface SendMailOptions {
   to: string;
   subject: string;
   text: string;
+  replyTo?: string;
 }
 
 const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<string | null> => {
@@ -57,6 +59,7 @@ const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<s
       to: options.to,
       subject: options.subject,
       text: options.text,
+      ...(options.replyTo ? { replyTo: options.replyTo } : {}),
     });
     if (error) throw new Error(`Resend error: ${error.message}`);
     return data?.id || null;
@@ -512,6 +515,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       to: contactData.email,
       subject: subject,
       text: textBody,
+      ...(smtpSettings.resendReplyTo ? { replyTo: smtpSettings.resendReplyTo } : {}),
     });
 
     await randomContact.ref.update({
@@ -825,6 +829,30 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
       console.log(`Resend delivered: ${emailLower}`);
     } catch (err) {
       console.error("Webhook delivered update error:", err);
+    }
+  }
+
+  // Inbound reply — kontakt odpovedal → handoff
+  if (eventType === "email.received") {
+    try {
+      const fromRaw: string = event?.data?.from || "";
+      const fromEmail = fromRaw.match(/<([^>]+)>/)?.[1] || fromRaw.trim();
+      if (fromEmail) {
+        const senderNorm = normalizeEmail(fromEmail);
+        const contactSnap = await db.collection("contacts")
+          .where("email", "==", senderNorm).limit(1).get();
+        if (!contactSnap.empty) {
+          await contactSnap.docs[0].ref.update({
+            handoff: true,
+            handoffAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          console.log(`Inbound reply: ${senderNorm} → marked as handoff`);
+        } else {
+          console.log(`Inbound reply: ${senderNorm} — contact not found in DB`);
+        }
+      }
+    } catch (err) {
+      console.error("Webhook inbound reply error:", err);
     }
   }
 
