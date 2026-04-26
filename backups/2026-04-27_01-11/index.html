@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EMIL — Email Liaison</title>
+    <title>EMIL</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📧</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -76,49 +76,6 @@
         }
 
         .hidden { display: none; }
-
-        /* ── Light mode — všetok text čierny/tmavý ── */
-        html:not(.dark) .text-gray-900,
-        html:not(.dark) .text-gray-800,
-        html:not(.dark) .text-gray-700,
-        html:not(.dark) .text-gray-600,
-        html:not(.dark) .text-gray-500,
-        html:not(.dark) .text-gray-400         { color:#111827 !important; }
-
-        /* ── Dark mode ── */
-        html.dark body                          { background:#0f172a; color:#f1f5f9; }
-        html.dark .bg-light-bg                  { background:#0f172a !important; }
-        html.dark .bg-light-card,
-        html.dark .bg-white                     { background:#1e293b !important; }
-        html.dark .border-light-border,
-        html.dark .border-gray-100,
-        html.dark .border-gray-200              { border-color:#334155 !important; }
-
-        /* Všetky odtiene textu → buď biela alebo tmavosivá podľa dôležitosti */
-        html.dark .text-gray-900,
-        html.dark .text-gray-800,
-        html.dark .text-gray-700                { color:#f1f5f9 !important; }
-        html.dark .text-gray-600,
-        html.dark .text-gray-500,
-        html.dark .text-gray-400                { color:#94a3b8 !important; }
-
-        html.dark .bg-gray-50                   { background:#1e293b !important; }
-        html.dark .bg-gray-100                  { background:#293548 !important; }
-        html.dark nav,
-        html.dark .bg-white\/95                 { background:rgba(15,23,42,0.97) !important; }
-        html.dark input,
-        html.dark textarea,
-        html.dark select                        { background:#0f172a !important; color:#f1f5f9 !important; border-color:#334155 !important; }
-        html.dark input::placeholder,
-        html.dark textarea::placeholder         { color:#475569 !important; }
-        html.dark .divide-light-border > tr,
-        html.dark .divide-y > tr                { border-color:#334155 !important; }
-        html.dark .hover\:bg-gray-50:hover      { background:#293548 !important; }
-        html.dark .bg-indigo-50                 { background:#1e1b4b !important; }
-        html.dark .bg-red-50                    { background:#2d1515 !important; }
-        html.dark .bg-green-50                  { background:#0f2d1f !important; }
-        html.dark .bg-yellow-50                 { background:#2d2200 !important; }
-        html.dark #emil-tooltip                 { background:#f1f5f9; color:#0f172a; }
     </style>
 </head>
 <body class="bg-light-bg text-gray-900 min-h-screen">
@@ -194,7 +151,6 @@
                         <button id="nastaveniaTab" class="nav-tab ml-4 px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
                             Nastavenia
                         </button>
-                        <button id="darkToggleBtn" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition" title="Prepnúť tmavý/svetlý režim">🌙</button>
                         <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
                             Odhlásiť
                         </button>
@@ -366,10 +322,7 @@
             <div class="space-y-6 mt-6">
                 <!-- Reputation Watchdog -->
                 <div class="bg-white rounded-2xl border border-light-border p-6 shadow-sm">
-                    <div class="flex items-center justify-between mb-1">
-                        <h2 class="text-sm font-bold text-gray-700">🐕 Reputation Watchdog — výkonnosť predmetov</h2>
-                        <button id="exportWatchdogBtn" class="px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg transition">⬇️ Export CSV</button>
-                    </div>
+                    <h2 class="text-sm font-bold text-gray-700 mb-1">🐕 Reputation Watchdog — výkonnosť predmetov</h2>
                     <p class="text-xs text-gray-400 mb-4">Jediná optimalizačná metrika bez open-rate trackingu — ktoré predmety servery prijímajú.</p>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
@@ -956,25 +909,6 @@
                 <p class="text-xs text-gray-500 mt-2">Typ sa detekuje automaticky. Pre doménový zákaz zadaj <strong>@firma.sk</strong> — zablokuje všetky emaily z danej domény.</p>
             </div>
 
-            <!-- CSV Import -->
-            <div class="bg-white rounded-2xl border border-light-border shadow-sm p-6 mb-6">
-                <h2 class="text-lg font-bold text-gray-900 mb-1">Importovať CSV</h2>
-                <p class="text-sm text-gray-500 mb-4">CSV súbor s jednou hodnotou na riadok — email alebo doména (<code class="bg-gray-100 px-1 rounded text-xs">@firma.sk</code>). Voliteľný druhý stĺpec = poznámka. Prvý riadok (hlavička) sa preskočí.</p>
-                <div class="flex items-center gap-3 flex-wrap">
-                    <input type="file" id="blacklistCsvFile" accept=".csv" class="hidden">
-                    <label for="blacklistCsvFile"
-                           class="flex-1 min-w-48 px-4 py-3 bg-gray-50 border border-light-border rounded-lg text-gray-600 cursor-pointer hover:border-primary hover:bg-gray-100 transition text-center text-sm">
-                        Vybrať súbor
-                    </label>
-                    <button id="blacklistImportBtn"
-                            class="px-6 py-3 gradient-bg text-white font-semibold rounded-lg hover:opacity-90 transition text-sm">
-                        Importovať
-                    </button>
-                </div>
-                <p id="blacklistCsvFileName" class="text-xs text-gray-400 mt-2"></p>
-                <p id="blacklistImportResult" class="hidden text-sm mt-3 p-3 rounded-lg"></p>
-            </div>
-
             <!-- Blokované automaticky -->
             <div class="bg-white rounded-2xl border border-light-border shadow-sm p-6 mb-6">
                 <div class="flex items-center justify-between mb-3">
@@ -1087,9 +1021,9 @@
 
             <!-- Filter + Tabuľka -->
             <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden">
-                <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-light-border">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-light-border">
                     <h2 class="text-lg font-bold text-gray-900">Zoznam <span id="blacklistCount" class="text-sm font-normal text-gray-500"></span></h2>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="flex gap-2">
                         <button onclick="filterBlacklist('all')" id="filterAll"
                                 class="blacklist-filter px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-white">Všetky</button>
                         <button onclick="filterBlacklist('email')" id="filterEmail"
@@ -1098,7 +1032,6 @@
                                 class="blacklist-filter px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Domény</button>
                         <button onclick="filterBlacklist('hard_bounce')" id="filterBounce"
                                 class="blacklist-filter px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Neplatná adresa</button>
-                        <button id="exportBlacklistBtn" class="px-3 py-1.5 text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-lg transition">⬇️ Export CSV</button>
                     </div>
                 </div>
                 <div class="overflow-x-auto">

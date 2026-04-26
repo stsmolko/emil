@@ -370,8 +370,6 @@ async function loadResendStatus() {
     }
 }
 
-let lastWatchdogData = [];
-
 async function loadReporting() {
     try {
         const getReportingStats = httpsCallable(functions, 'getReportingStats');
@@ -431,7 +429,6 @@ async function loadReporting() {
         });
 
         // Reputation Watchdog table
-        lastWatchdogData = s.subjects || [];
         const tbody = document.getElementById('repSubjectTable');
         tbody.innerHTML = '';
         if (!s.subjects.length) {
@@ -2389,144 +2386,4 @@ document.getElementById('blacklistInput').addEventListener('keydown', async (e) 
         e.preventDefault();
         document.getElementById('blacklistAddBtn').click();
     }
-});
-
-// ─── Export Watchdog CSV ──────────────────────────────────────────────────────
-document.getElementById('exportWatchdogBtn').addEventListener('click', () => {
-    if (!lastWatchdogData.length) {
-        alert('Žiadne dáta na export. Načítaj dashboard najskôr.');
-        return;
-    }
-    const header = ['Predmet', 'Odoslané', 'Doručené', 'Bounce', 'Odpovede', 'Úspešnosť %'];
-    const rows = lastWatchdogData.map(s => [
-        `"${(s.subject || '').replace(/"/g, '""')}"`,
-        s.sent,
-        s.delivered,
-        s.bounced,
-        s.handoff || 0,
-        s.successRate !== null ? s.successRate : ''
-    ]);
-    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `watchdog_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-});
-
-// ─── Export Blacklist CSV ─────────────────────────────────────────────────────
-document.getElementById('exportBlacklistBtn').addEventListener('click', () => {
-    if (!allBlacklistEntries.length) {
-        alert('Blacklist je prázdny.');
-        return;
-    }
-    const typeLabel = { hard_bounce: 'Neplatná adresa', domain: 'Doména', email: 'Email', spam_complaint: 'Spam complaint' };
-    const header = ['Hodnota', 'Typ', 'Dôvod', 'Dátum pridania'];
-    const rows = allBlacklistEntries.map(e => [
-        `"${(e.value || '').replace(/"/g, '""')}"`,
-        `"${typeLabel[e.type] || e.type || ''}"`,
-        `"${(e.reason || '').replace(/"/g, '""')}"`,
-        e.addedAt ? new Date(e.addedAt.seconds * 1000).toLocaleDateString('sk-SK') : ''
-    ]);
-    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `blacklist_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-});
-
-// ─── Blacklist CSV Import ─────────────────────────────────────────────────────
-document.getElementById('blacklistCsvFile').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) document.getElementById('blacklistCsvFileName').textContent = `Vybraný: ${file.name}`;
-});
-
-document.getElementById('blacklistImportBtn').addEventListener('click', async () => {
-    const file = document.getElementById('blacklistCsvFile').files[0];
-    const resultEl = document.getElementById('blacklistImportResult');
-    if (!file) { alert('Vyberte CSV súbor'); return; }
-
-    const btn = document.getElementById('blacklistImportBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Importujem...';
-    resultEl.className = 'text-sm mt-3 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-700';
-    resultEl.textContent = 'Spracovávam...';
-    resultEl.classList.remove('hidden');
-
-    try {
-        const text = await file.text();
-        const lines = text.split('\n').filter(l => l.trim());
-
-        // Preskočiť hlavičku
-        const dataLines = lines[0].toLowerCase().includes('hodnot') || lines[0].toLowerCase().includes('email') || lines[0].toLowerCase().includes('value')
-            ? lines.slice(1) : lines;
-
-        const existingIds = new Set(allBlacklistEntries.map(e => e.id));
-        let added = 0, skippedDupe = 0, skippedProtected = 0, skippedInvalid = 0;
-
-        for (const line of dataLines) {
-            const parts = line.split(',').map(s => s.replace(/^["']|["']$/g, '').trim());
-            const raw = parts[0];
-            const reason = parts[1] || 'CSV import';
-            if (!raw) { skippedInvalid++; continue; }
-
-            const trimmed = raw.startsWith('@') ? raw.toLowerCase() : normalizeEmail(raw);
-            if (!trimmed) { skippedInvalid++; continue; }
-
-            const isDomain = trimmed.startsWith('@');
-            if (isDomain && PROTECTED_DOMAINS.includes(trimmed)) { skippedProtected++; continue; }
-            if (existingIds.has(trimmed)) { skippedDupe++; continue; }
-
-            const entryType = isDomain ? 'domain' : 'email';
-            await setDoc(doc(db, 'blacklist', trimmed), {
-                value: trimmed,
-                type: entryType,
-                reason,
-                addedAt: serverTimestamp(),
-            });
-            existingIds.add(trimmed);
-            added++;
-        }
-
-        await loadBlacklist();
-        resultEl.className = 'text-sm mt-3 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700';
-        resultEl.textContent = `✅ Importovaných: ${added}${skippedDupe ? ` · Duplicity: ${skippedDupe}` : ''}${skippedProtected ? ` · Chránené domény: ${skippedProtected}` : ''}${skippedInvalid ? ` · Neplatné: ${skippedInvalid}` : ''}`;
-        document.getElementById('blacklistCsvFile').value = '';
-        document.getElementById('blacklistCsvFileName').textContent = '';
-    } catch (err) {
-        console.error('Blacklist CSV import error:', err);
-        resultEl.className = 'text-sm mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700';
-        resultEl.textContent = `❌ Chyba: ${err.message}`;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Importovať';
-        setTimeout(() => resultEl.classList.add('hidden'), 8000);
-    }
-});
-
-// ─── Dark mode ───────────────────────────────────────────────────────────────
-const darkToggleBtn = document.getElementById('darkToggleBtn');
-
-function applyDarkMode(dark) {
-    if (dark) {
-        document.documentElement.classList.add('dark');
-        darkToggleBtn.textContent = '☀️';
-    } else {
-        document.documentElement.classList.remove('dark');
-        darkToggleBtn.textContent = '🌙';
-    }
-}
-
-// Načítaj preferenciu pri štarte
-applyDarkMode(localStorage.getItem('emil-dark') === '1');
-
-darkToggleBtn.addEventListener('click', () => {
-    const isDark = document.documentElement.classList.contains('dark');
-    localStorage.setItem('emil-dark', isDark ? '0' : '1');
-    applyDarkMode(!isDark);
 });
