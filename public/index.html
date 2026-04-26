@@ -44,6 +44,23 @@
             box-shadow: 0 10px 30px rgba(99, 102, 241, 0.15);
         }
 
+        #emil-tooltip {
+            position: fixed;
+            background: #1f2937;
+            color: #f9fafb;
+            font-size: 11px;
+            line-height: 1.5;
+            padding: 7px 11px;
+            border-radius: 7px;
+            max-width: 220px;
+            text-align: center;
+            pointer-events: none;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            transition: opacity 0.12s ease;
+            opacity: 0;
+        }
+
         .loader {
             border: 3px solid #e2e8f0;
             border-top: 3px solid #6366f1;
@@ -131,7 +148,10 @@
                         <button id="settingsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
                             Správa
                         </button>
-                        <button id="logoutBtn" class="ml-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                        <button id="nastaveniaTab" class="nav-tab ml-4 px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
+                            Nastavenia
+                        </button>
+                        <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
                             Odhlásiť
                         </button>
                     </div>
@@ -141,107 +161,75 @@
 
         <!-- Dashboard Section -->
         <div id="dashboardSection" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Odoslané dnes</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statSentToday">0</p>
-                        </div>
-                        <div class="bg-green-100 p-3 rounded-lg">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">Limit: <span id="dailyLimit">10</span>/deň</p>
+            <!-- Výkonnosť kampane -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Celkový počet emailov odoslaných od začiatku kampane">
+                    <p class="text-2xl font-bold text-gray-900" id="repTotalSent">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Odoslaných</p>
                 </div>
-
-                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Zostávajúce</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statRemaining">0</p>
-                        </div>
-                        <div class="bg-blue-100 p-3 rounded-lg">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                    </div>
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Počet emailov potvrdených serverom príjemcu (Resend webhook). Nie je to to isté ako otvorenie emailu.">
+                    <p class="text-2xl font-bold text-green-600" id="repDelivered">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Doručených</p>
                 </div>
-
-                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Chyby dnes</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statErrors">0</p>
-                        </div>
-                        <div class="bg-red-100 p-3 rounded-lg">
-                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
-                    </div>
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Percento emailov ktoré sa nedoručili — neexistujúca adresa (hard bounce). Ideálne pod 2 %.">
+                    <p class="text-2xl font-bold" id="repBounceRate">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Nedoručené %</p>
                 </div>
-
-                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Celkom kontaktov</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statTotal">0</p>
-                        </div>
-                        <div class="bg-purple-100 p-3 rounded-lg">
-                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                            </svg>
-                        </div>
-                    </div>
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Percento úspešne doručených emailov z celkového počtu odoslaných. Ideálne nad 95 %.">
+                    <p class="text-2xl font-bold" id="repDeliveryRate">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Doručiteľnosť</p>
                 </div>
-
-                <div class="bg-light-card rounded-xl p-6 border border-light-border card-hover shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Úspešné odoslania</p>
-                            <p class="text-3xl font-bold text-gray-900 mt-2" id="statSuccessRate">—</p>
-                        </div>
-                        <div class="bg-teal-100 p-3 rounded-lg">
-                            <svg class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                            </svg>
-                        </div>
-                    </div>
-                    <p class="text-xs text-gray-500 mt-2">Akceptované Resendom</p>
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Počet kontaktov označených Riešim osobne — odpovedali na email (IMAP alebo manuálne).">
+                    <p class="text-2xl font-bold text-indigo-600" id="repHandoffCount">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Odpovedalo</p>
+                </div>
+                <div class="bg-light-card rounded-xl p-5 border border-light-border card-hover shadow-sm text-center cursor-help" data-tip="Percento kontaktov ktorí odpovedali z celkového počtu odoslaných emailov.">
+                    <p class="text-2xl font-bold text-indigo-600" id="repResponseRate">—</p>
+                    <p class="text-xs text-gray-500 mt-1">Miera odpovedí %</p>
                 </div>
             </div>
 
-            <!-- Resend Status -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <!-- Domain Health -->
-                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Reputácia domény</p>
-                        <span id="domainStatusBadge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-400">—</span>
-                    </div>
-                    <p class="text-xl font-bold text-gray-900" id="domainName">—</p>
-                    <p class="text-xs text-gray-500 mt-1" id="domainStatusText">Načítavam...</p>
+            <!-- Kontaktový prehľad -->
+            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-6 py-4 mb-6 flex flex-wrap items-center gap-6">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">👥 Databáza</span>
+                <div class="w-px h-5 bg-gray-200"></div>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
+                    <span class="text-xs text-gray-500">Celkovo</span>
+                    <span class="text-sm font-bold text-gray-900" id="statTotal">0</span>
                 </div>
-                <!-- Monthly Credit -->
-                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
-                    <div class="flex items-center justify-between mb-3">
-                        <p class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Kredit Resend</p>
-                        <span class="text-xs text-gray-400">Free tier</span>
-                    </div>
-                    <div class="flex items-end gap-2 mb-2">
-                        <p class="text-xl font-bold text-gray-900"><span id="creditSentMonth">—</span> <span class="text-sm font-normal text-gray-500">/ 3 000</span></p>
-                        <p class="text-xs text-gray-400 mb-0.5">tento mesiac</p>
-                    </div>
-                    <div class="w-full bg-gray-100 rounded-full h-2 mb-2">
-                        <div id="creditBar" class="h-2 rounded-full bg-indigo-500 transition-all duration-500" style="width: 0%"></div>
-                    </div>
-                    <p class="text-xs text-gray-500">Dnes: <span id="creditSentToday">—</span> / 100 · Zostatok tento mesiac: <span id="creditRemaining">—</span></p>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
+                    <span class="text-xs text-gray-500">Oboslané</span>
+                    <span class="text-sm font-bold text-green-600" id="statSentAll">0</span>
                 </div>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
+                    <span class="text-xs text-gray-500">Zostávajúce</span>
+                    <span class="text-sm font-bold text-blue-600" id="statRemaining">0</span>
+                </div>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
+                    <span class="text-xs text-gray-500">Chyby dnes</span>
+                    <span class="text-sm font-bold text-red-500" id="statErrors">0</span>
+                </div>
+                <div class="w-px h-5 bg-gray-200"></div>
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">🚫 Blacklist</span>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
+                    <span class="text-xs text-gray-500">Bounce</span>
+                    <span class="text-sm font-bold text-red-600" id="repBlBounce">—</span>
+                </div>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
+                    <span class="text-xs text-gray-500">Spam</span>
+                    <span class="text-sm font-bold text-orange-500" id="repBlComplaint">—</span>
+                </div>
+                <div class="flex items-center gap-2 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
+                    <span class="text-xs text-gray-500">Manuálne</span>
+                    <span class="text-sm font-bold text-gray-500" id="repBlManual">—</span>
+                </div>
+            </div>
+
+            <!-- 30-day activity graph -->
+            <div class="bg-light-card rounded-xl border border-light-border p-6 shadow-sm mb-6">
+                <h2 class="text-sm font-bold text-gray-700 mb-4 cursor-help inline-block" data-tip="Počet odoslaných emailov za každý deň v posledných 30 dňoch. Prázdne dni = kampaň bola pozastavená alebo neboli kontakty.">📅 Aktivita posledných 30 dní</h2>
+                <div id="rep30DayChart" class="flex items-end gap-1 h-24"></div>
+                <div id="rep30DayLabels" class="flex gap-1 mt-1 text-xs text-gray-400"></div>
             </div>
 
             <!-- Campaign Control -->
@@ -280,7 +268,7 @@
 
             <!-- Campaign ETA + Scheduler Health card -->
             <div class="mb-6 bg-white rounded-xl border border-indigo-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 cursor-help" data-tip="Odhadovaný dátum kedy bude odoslaný email poslednému kontaktu — vypočítané z denného limitu a zostávajúcich kontaktov">
                     <div class="bg-indigo-100 p-3 rounded-lg flex-shrink-0">
                         <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
@@ -291,7 +279,7 @@
                         <p id="campaignEta" class="text-sm text-gray-500 mt-0.5">Načítavam...</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 cursor-help" data-tip="Či Cloud Function scheduler beží správne. Zelená = aktívny, červená = problém s plánovaním">
                     <span id="schedulerHealthDot" class="w-2.5 h-2.5 rounded-full bg-gray-300 flex-shrink-0"></span>
                     <div>
                         <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Funkčnosť systému</p>
@@ -300,102 +288,38 @@
                 </div>
             </div>
 
-            <!-- Total Stats & Chart -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                <!-- Total Emails Sent -->
-                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide">Celkom odoslaných emailov</p>
-                            <p class="text-xs text-gray-500 mt-1">Od začiatku používania systému</p>
-                        </div>
-                        <div class="bg-gradient-to-br from-indigo-100 to-purple-100 p-3 rounded-lg">
-                            <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                        </div>
+            <!-- Resend Status -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Domain Health -->
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm cursor-help" data-tip="Reputácia tvojej domény v Resende. Healthy = v poriadku. Low/Critical = kampaň sa automaticky zastaví a príde ti upozornenie na email.">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Reputácia domény</p>
+                        <span id="domainStatusBadge" class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-400">—</span>
                     </div>
-                    <div class="flex items-baseline space-x-3">
-                        <p class="text-5xl font-bold text-gray-900" id="totalEmailsSent">0</p>
-                        <p class="text-lg text-gray-500">emailov</p>
-                    </div>
+                    <p class="text-xl font-bold text-gray-900" id="domainName">—</p>
+                    <p class="text-xs text-gray-500 mt-1" id="domainStatusText">Načítavam...</p>
                 </div>
-
-                <!-- 7-Day Chart -->
-                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm">
-                    <p class="text-gray-800 text-sm font-semibold uppercase tracking-wide mb-4">Posledných 7 dní</p>
-                    <div class="flex items-end justify-between h-32 space-x-2">
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day0"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day0Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day1"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day1Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day2"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day2Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day3"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day3Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day4"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day4Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-500 to-purple-500 rounded-t transition-all duration-500" style="height: 0%" id="day5"></div>
-                            <span class="text-gray-500 text-xs mt-2" id="day5Label">-</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-end">
-                            <div class="w-full bg-gradient-to-t from-indigo-600 to-purple-600 rounded-t transition-all duration-500 shadow-lg" style="height: 0%" id="day6"></div>
-                            <span class="text-gray-900 text-xs mt-2 font-semibold" id="day6Label">Dnes</span>
-                        </div>
+                <!-- Monthly Credit -->
+                <div class="bg-light-card rounded-xl p-6 border border-light-border shadow-sm cursor-help" data-tip="Počet emailov odoslaných cez Resend tento mesiac. Free tier = 3 000 emailov/mesiac, max 100/deň.">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Kredit Resend</p>
+                        <span class="text-xs text-gray-400">Free tier</span>
                     </div>
+                    <div class="flex items-end gap-2 mb-2">
+                        <p class="text-xl font-bold text-gray-900"><span id="creditSentMonth">—</span> <span class="text-sm font-normal text-gray-500">/ 3 000</span></p>
+                        <p class="text-xs text-gray-400 mb-0.5">tento mesiac</p>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-2 mb-2">
+                        <div id="creditBar" class="h-2 rounded-full bg-indigo-500 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-gray-500">Dnes: <span id="creditSentToday">—</span> / 100 · Zostatok tento mesiac: <span id="creditRemaining">—</span></p>
                 </div>
             </div>
 
+            <!-- Total Stats & Chart -->
+
             <!-- Reporting -->
             <div class="space-y-6 mt-6">
-                <!-- Summary cards -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div class="bg-white rounded-2xl border border-light-border p-5 shadow-sm text-center">
-                        <p class="text-3xl font-bold text-gray-900" id="repTotalSent">—</p>
-                        <p class="text-xs text-gray-500 mt-1">Odoslaných</p>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-light-border p-5 shadow-sm text-center">
-                        <p class="text-3xl font-bold text-green-600" id="repDelivered">—</p>
-                        <p class="text-xs text-gray-500 mt-1">Doručených</p>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-light-border p-5 shadow-sm text-center">
-                        <p class="text-3xl font-bold" id="repBounceRate">—</p>
-                        <p class="text-xs text-gray-500 mt-1">Nedoručené %</p>
-                    </div>
-                    <div class="bg-white rounded-2xl border border-light-border p-5 shadow-sm text-center">
-                        <p class="text-3xl font-bold" id="repDeliveryRate">—</p>
-                        <p class="text-xs text-gray-500 mt-1">Doručiteľnosť</p>
-                    </div>
-                </div>
-
-                <!-- Blacklist breakdown -->
-                <div class="bg-white rounded-2xl border border-light-border p-6 shadow-sm">
-                    <h2 class="text-sm font-bold text-gray-700 mb-4">🚫 Blacklist</h2>
-                    <div class="flex gap-6 flex-wrap">
-                        <div><span class="text-2xl font-bold text-red-600" id="repBlBounce">—</span><p class="text-xs text-gray-500">Neexistujúca adresa</p></div>
-                        <div><span class="text-2xl font-bold text-orange-500" id="repBlComplaint">—</span><p class="text-xs text-gray-500">Označené ako spam</p></div>
-                        <div><span class="text-2xl font-bold text-gray-500" id="repBlManual">—</span><p class="text-xs text-gray-500">Manuálne</p></div>
-                    </div>
-                </div>
-
-                <!-- 30-day activity graph -->
-                <div class="bg-white rounded-2xl border border-light-border p-6 shadow-sm">
-                    <h2 class="text-sm font-bold text-gray-700 mb-4">📅 Aktivita posledných 30 dní</h2>
-                    <div id="rep30DayChart" class="flex items-end gap-1 h-24"></div>
-                    <div id="rep30DayLabels" class="flex gap-1 mt-1 text-xs text-gray-400"></div>
-                </div>
-
                 <!-- Reputation Watchdog -->
                 <div class="bg-white rounded-2xl border border-light-border p-6 shadow-sm">
                     <h2 class="text-sm font-bold text-gray-700 mb-1">🐕 Reputation Watchdog — výkonnosť predmetov</h2>
@@ -403,16 +327,17 @@
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead>
-                                <tr class="text-xs text-gray-500 border-b border-gray-100">
-                                    <th class="text-left py-2 pr-4">Predmet</th>
-                                    <th class="text-right py-2 px-2">Odoslané</th>
-                                    <th class="text-right py-2 px-2">Doručené</th>
-                                    <th class="text-right py-2 px-2">Bounce</th>
-                                    <th class="text-right py-2 pl-2">Úspešnosť</th>
-                                </tr>
+                            <tr class="text-xs text-gray-500 border-b border-gray-100">
+                                <th class="text-left py-2 pr-4">Predmet</th>
+                                <th class="text-right py-2 px-2 cursor-help" data-tip="Celkový počet emailov odoslaných s týmto predmetom">Odoslané</th>
+                                <th class="text-right py-2 px-2 cursor-help" data-tip="Počet emailov potvrdených serverom príjemcu (webhook email.delivered)">Doručené</th>
+                                <th class="text-right py-2 px-2 cursor-help" data-tip="Počet hard bounce — adresa neexistuje alebo odmietla doručenie. Vysoký bounce = zlý predmet alebo stará databáza.">Bounce</th>
+                                <th class="text-right py-2 px-2 cursor-help" data-tip="Počet kontaktov ktorí odpovedali na email s týmto predmetom (detekcia cez IMAP)">✋ Odpovede</th>
+                                <th class="text-right py-2 pl-2 cursor-help" data-tip="Miera doručiteľnosti = Doručené / Odoslané × 100 %. Porovnaj predmety — vyšší % = lepší predmet.">Úspešnosť</th>
+                            </tr>
                             </thead>
                             <tbody id="repSubjectTable" class="divide-y divide-gray-50">
-                                <tr><td colspan="5" class="py-4 text-center text-xs text-gray-400">Načítavam...</td></tr>
+                                <tr><td colspan="6" class="py-4 text-center text-xs text-gray-400">Načítavam...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -526,14 +451,14 @@
             </div>
         </div>
 
-        <!-- Settings Section -->
-        <div id="settingsSection" class="hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <form id="smtpForm" class="space-y-6">
+        <!-- Nastavenia Section -->
+        <div id="nastaveniaSection" class="hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <form id="nastaveniaForm" class="space-y-6">
 
-                <!-- Pripojenie blok — Resend -->
+                <!-- Resend API -->
                 <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden">
                     <div class="gradient-bg px-6 py-4">
-                        <h2 class="text-lg font-bold text-white">⚡ Pripojenie — Resend</h2>
+                        <h2 class="text-lg font-bold text-white">⚡ Resend</h2>
                         <p class="text-indigo-200 text-xs mt-1">API kľúč získate na <a href="https://resend.com/api-keys" target="_blank" class="underline">resend.com/api-keys</a></p>
                     </div>
                     <div class="p-6 space-y-4">
@@ -543,44 +468,72 @@
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                    placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxx">
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Zobrazené meno odosielateľa</label>
-                                <input type="text" id="resendFromName"
-                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
-                                       placeholder="Ján Novák">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">Email odosielateľa</label>
-                                <input type="email" id="resendFromEmail"
-                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
-                                       placeholder="jan@vasadomena.sk">
-                            </div>
-                        </div>
-                        <p class="text-xs text-gray-500 -mt-2">Príjemcovia uvidia: <em>Ján Novák &lt;jan@vasadomena.sk&gt;</em> — použite bežné meno, bez Caps Lock, emoji ani slov ako Akcia/Zdarma. Email musí byť z domény overenej v Resend.</p>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Váš email (pre notifikácie)</label>
                             <input type="email" id="resendNotifyEmail"
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                    placeholder="vas@email.com">
-                            <p class="text-xs text-gray-500 mt-1">Na tento email dostanete notifikáciu o dokončení kampane a testovací email</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Inbound adresa (Reply-To)</label>
-                            <input type="email" id="resendReplyTo"
-                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
-                                   placeholder="reply@reply.vasadomena.sk">
-                            <p class="text-xs text-gray-500 mt-1">Ak nastavíš Resend Inbound, sem vlož inbound adresu — odpovede kontaktov sa automaticky označia ako ✋ Riešim osobne</p>
+                            <p class="text-xs text-gray-500 mt-1">Notifikácia o dokončení kampane, testovací email, domain health alert</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Maximálny počet emailov za deň</label>
                             <input type="number" id="dailyLimitInput" min="1" max="50" value="10"
                                    class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
                                    placeholder="10">
-                            <p class="text-xs text-gray-500 mt-1">Scheduler každý deň náhodne vyberie číslo od 1 po tento limit. Odporúčame 5–15.</p>
+                            <p class="text-xs text-gray-500 mt-1">Scheduler náhodne vyberie číslo od 1 po tento limit. Odporúčame 5–15.</p>
                         </div>
                     </div>
                 </div>
+
+                <!-- IMAP -->
+                <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden">
+                    <div class="gradient-bg px-6 py-4">
+                        <h2 class="text-lg font-bold text-white">📥 Automatický handoff (IMAP)</h2>
+                        <p class="text-indigo-200 text-xs mt-1">Keď kontakt odpíše, EMIL ho automaticky označí ako ✋ Riešim osobne</p>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">IMAP server</label>
+                                <input type="text" id="imapHost"
+                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                       placeholder="mail.vasadomena.sk">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Port</label>
+                                <input type="number" id="imapPort" value="993"
+                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email (IMAP login)</label>
+                            <input type="email" id="imapUser"
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="vas@vasadomena.sk">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Heslo</label>
+                            <input type="password" id="imapPass"
+                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                   placeholder="••••••••">
+                        </div>
+                        <p class="text-xs text-gray-400">Kontrola každých 15 minút. IMAP údaje nájdeš v nastaveniach svojho emailového poskytovateľa. Zvyčajne <em>mail.vasadomena.sk</em>, port 993 (SSL).</p>
+                    </div>
+                </div>
+
+                <button type="submit" id="saveNastaveniaBtn"
+                        class="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
+                    Uložiť nastavenia
+                </button>
+            </form>
+            <div id="nastaveniaSuccess" class="hidden mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+                Nastavenia úspešne uložené!
+            </div>
+        </div>
+
+        <!-- Settings Section (Správa) -->
+        <div id="settingsSection" class="hidden max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <form id="smtpForm" class="space-y-6">
 
                 <!-- Email obsah blok -->
                 <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden">
@@ -589,6 +542,25 @@
                         <p class="text-indigo-200 text-xs mt-1">Predmety, oslovenia, telo a ukončenia — systém náhodne kombinuje varianty</p>
                     </div>
                     <div class="p-6 space-y-5">
+                        <!-- Odosielateľ -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">👤 Meno odosielateľa</label>
+                                <input type="text" id="resendFromName"
+                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                       placeholder="Ján Novák">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">📧 Email odosielateľa</label>
+                                <input type="email" id="resendFromEmail"
+                                       class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                       placeholder="jan@vasadomena.sk">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 -mt-2">Príjemcovia uvidia: <em>Ján Novák &lt;jan@vasadomena.sk&gt;</em> — bežné meno, bez Caps Lock, emoji ani slov ako Akcia/Zdarma. Email musí byť z domény overenej v Resend.</p>
+
+                        <hr class="border-gray-100">
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">📋 Predmety emailov</label>
                             <textarea id="emailSubjects" rows="5"
@@ -1202,5 +1174,39 @@
 
     <!-- Firebase SDK -->
     <script type="module" src="js/app.js"></script>
+<div id="emil-tooltip"></div>
+<script>
+(function() {
+    const tip = document.getElementById('emil-tooltip');
+    let hideTimer;
+    document.addEventListener('mouseover', function(e) {
+        const el = e.target.closest('[data-tip]');
+        if (!el) return;
+        clearTimeout(hideTimer);
+        tip.textContent = el.dataset.tip;
+        tip.style.opacity = '1';
+        positionTip(e);
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (!e.target.closest('[data-tip]')) return;
+        positionTip(e);
+    });
+    document.addEventListener('mouseout', function(e) {
+        if (!e.target.closest('[data-tip]')) return;
+        hideTimer = setTimeout(function() { tip.style.opacity = '0'; }, 80);
+    });
+    function positionTip(e) {
+        const margin = 12;
+        const tw = tip.offsetWidth || 220;
+        const th = tip.offsetHeight || 40;
+        let x = e.clientX + margin;
+        let y = e.clientY - th - margin;
+        if (x + tw > window.innerWidth - 8) x = e.clientX - tw - margin;
+        if (y < 8) y = e.clientY + margin;
+        tip.style.left = x + 'px';
+        tip.style.top  = y + 'px';
+    }
+})();
+</script>
 </body>
 </html>

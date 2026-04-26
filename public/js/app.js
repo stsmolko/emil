@@ -49,19 +49,21 @@ const logoutBtn = document.getElementById('logoutBtn');
 
 const dashboardTab = document.getElementById('dashboardTab');
 const kontaktyTab = document.getElementById('kontaktyTab');
+const nastaveniaTab = document.getElementById('nastaveniaTab');
 const settingsTab = document.getElementById('settingsTab');
 const radyTab = document.getElementById('radyTab');
 const blacklistTab = document.getElementById('blacklistTab');
 const dashboardSection = document.getElementById('dashboardSection');
 const kontaktySection = document.getElementById('kontaktySection');
+const nastaveniaSection = document.getElementById('nastaveniaSection');
 const settingsSection = document.getElementById('settingsSection');
 const radySection = document.getElementById('radySection');
 const blacklistSection = document.getElementById('blacklistSection');
 
-const statSentToday = document.getElementById('statSentToday');
 const statRemaining = document.getElementById('statRemaining');
 const statErrors = document.getElementById('statErrors');
 const statTotal = document.getElementById('statTotal');
+const statSentAll = document.getElementById('statSentAll');
 const dailyLimit = document.getElementById('dailyLimit');
 
 const contactsTable = document.getElementById('contactsTable');
@@ -271,6 +273,10 @@ kontaktyTab.addEventListener('click', () => {
     switchTab('kontakty');
 });
 
+nastaveniaTab.addEventListener('click', () => {
+    switchTab('nastavenia');
+});
+
 window.switchTab = function switchTab(tab) {
     document.querySelectorAll('.nav-tab').forEach(btn => {
         btn.classList.remove('border-b-2', 'border-primary', 'text-gray-900');
@@ -279,6 +285,7 @@ window.switchTab = function switchTab(tab) {
 
     dashboardSection.classList.add('hidden');
     kontaktySection.classList.add('hidden');
+    nastaveniaSection.classList.add('hidden');
     settingsSection.classList.add('hidden');
     radySection.classList.add('hidden');
     blacklistSection.classList.add('hidden');
@@ -295,6 +302,10 @@ window.switchTab = function switchTab(tab) {
         kontaktyTab.classList.remove('text-gray-500');
         kontaktySection.classList.remove('hidden');
         loadContacts();
+    } else if (tab === 'nastavenia') {
+        nastaveniaTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
+        nastaveniaTab.classList.remove('text-gray-500');
+        nastaveniaSection.classList.remove('hidden');
     } else if (tab === 'settings') {
         settingsTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         settingsTab.classList.remove('text-gray-500');
@@ -377,6 +388,10 @@ async function loadReporting() {
         delivEl.textContent = s.deliveryRate !== null ? s.deliveryRate + '%' : '—';
         delivEl.className = 'text-3xl font-bold ' + (s.deliveryRate >= 95 ? 'text-green-600' : s.deliveryRate >= 85 ? 'text-yellow-500' : 'text-red-600');
 
+        document.getElementById('repHandoffCount').textContent = s.handoffCount ?? '—';
+        const respEl = document.getElementById('repResponseRate');
+        respEl.textContent = s.responseRate !== null ? s.responseRate + '%' : '—';
+
         // Blacklist
         document.getElementById('repBlBounce').textContent = s.blacklist.bounce;
         document.getElementById('repBlComplaint').textContent = s.blacklist.complaint;
@@ -417,7 +432,7 @@ async function loadReporting() {
         const tbody = document.getElementById('repSubjectTable');
         tbody.innerHTML = '';
         if (!s.subjects.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-xs text-gray-400">Žiadne dáta</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-xs text-gray-400">Žiadne dáta</td></tr>';
         } else {
             const avgSuccess = s.subjects.reduce((a, b) => a + (b.successRate || 0), 0) / s.subjects.length;
             s.subjects.forEach(sub => {
@@ -432,6 +447,7 @@ async function loadReporting() {
                     <td class="py-2 px-2 text-xs text-right text-gray-600">${sub.sent}</td>
                     <td class="py-2 px-2 text-xs text-right text-green-600">${sub.delivered}</td>
                     <td class="py-2 px-2 text-xs text-right text-red-500">${sub.bounced}</td>
+                    <td class="py-2 px-2 text-xs text-right text-indigo-600">${sub.handoff || 0}${sub.responseRate !== null ? ' <span class="text-gray-400">(' + sub.responseRate + '%)</span>' : ''}</td>
                     <td class="py-2 pl-2 text-xs text-right font-semibold ${rateColor}">
                         ${sub.successRate !== null ? sub.successRate + '%' : '—'}
                     </td>`;
@@ -449,10 +465,10 @@ async function loadDashboard() {
         const result = await getDashboardStats();
         const stats = result.data;
         
-        statSentToday.textContent = stats.sentToday;
         statRemaining.textContent = stats.remainingContacts;
         statErrors.textContent = stats.errorsToday;
         statTotal.textContent = stats.totalContacts;
+        if (statSentAll) statSentAll.textContent = (stats.totalContacts || 0) - (stats.remainingContacts || 0);
         dailyLimit.textContent = stats.dailyLimit;
         
         // Load campaign status
@@ -748,6 +764,7 @@ async function loadContacts() {
             const remaining = snapshot.docs.filter(d => !d.data().sent).length;
             statTotal.textContent = total;
             statRemaining.textContent = remaining;
+            if (statSentAll) statSentAll.textContent = total - remaining;
 
             if (snapshot.empty) {
                 contactsTable.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Žiadne kontakty. Pridajte nový kontakt alebo importujte CSV.</td></tr>`;
@@ -1166,8 +1183,16 @@ async function loadSettings() {
                 document.getElementById('resendFromEmail').value = resendFromRaw;
             }
             document.getElementById('resendNotifyEmail').value = data.user || '';
-            document.getElementById('resendReplyTo').value = data.resendReplyTo || '';
             document.getElementById('dailyLimitInput').value = data.dailyLimit || 10;
+        }
+
+        const imapDoc = smtpDoc.docs.find(doc => doc.id === 'imap');
+        if (imapDoc) {
+            const d = imapDoc.data();
+            document.getElementById('imapHost').value = d.host || '';
+            document.getElementById('imapPort').value = d.port || 993;
+            document.getElementById('imapUser').value = d.user || '';
+            document.getElementById('imapPass').value = d.pass || '';
         }
         
         const emailDoc = smtpDoc.docs.find(doc => doc.id === 'email');
@@ -1231,6 +1256,36 @@ function validateSpintax(text) {
     return depth === 0;
 }
 
+document.getElementById('nastaveniaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resendApiKey = document.getElementById('resendApiKey').value.trim();
+    const user = document.getElementById('resendNotifyEmail').value.trim();
+    const resendReplyTo = document.getElementById('resendReplyTo').value.trim();
+    const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
+    const imapHost = document.getElementById('imapHost').value.trim();
+    const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
+    const imapUser = document.getElementById('imapUser').value.trim();
+    const imapPass = document.getElementById('imapPass').value.trim();
+
+    try {
+        await updateDoc(doc(db, 'settings', 'smtp'), {
+            resendApiKey,
+            user,
+            dailyLimit,
+            ...(resendReplyTo ? { resendReplyTo } : {}),
+        });
+        if (imapHost && imapUser && imapPass) {
+            await setDoc(doc(db, 'settings', 'imap'), { host: imapHost, port: imapPort, user: imapUser, pass: imapPass });
+        }
+        const ok = document.getElementById('nastaveniaSuccess');
+        ok.classList.remove('hidden');
+        setTimeout(() => ok.classList.add('hidden'), 3000);
+    } catch (err) {
+        console.error('nastaveniaForm save error:', err);
+        alert('Chyba pri ukladaní nastavení: ' + err.message);
+    }
+});
+
 smtpForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -1241,6 +1296,10 @@ smtpForm.addEventListener('submit', async (e) => {
     const user = document.getElementById('resendNotifyEmail').value.trim();
     const resendReplyTo = document.getElementById('resendReplyTo').value.trim();
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
+    const imapHost = document.getElementById('imapHost').value.trim();
+    const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
+    const imapUser = document.getElementById('imapUser').value.trim();
+    const imapPass = document.getElementById('imapPass').value.trim();
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
     const greetings = splitEntries(document.getElementById('emailGreetings').value);
     const closings = splitEntries(document.getElementById('emailClosings').value);
@@ -1319,6 +1378,15 @@ smtpForm.addEventListener('submit', async (e) => {
             dailyLimit,
             ...(resendReplyTo ? { resendReplyTo } : {}),
         });
+
+        if (imapHost && imapUser && imapPass) {
+            await setDoc(doc(db, 'settings', 'imap'), {
+                host: imapHost,
+                port: imapPort,
+                user: imapUser,
+                pass: imapPass,
+            });
+        }
         
         await setDoc(doc(db, 'settings', 'email'), {
             subjects,

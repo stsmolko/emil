@@ -3,6 +3,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 import { Resend } from "resend";
+import { ImapFlow } from "imapflow";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -900,11 +901,16 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
   let hardBounce = 0;
   let softBounce = 0;
   let complaint = 0;
-  const subjectMap: Record<string, { sent: number; delivered: number; bounced: number }> = {};
+  let handoffCount = 0;
+  const subjectMap: Record<string, { sent: number; delivered: number; bounced: number; handoff: number }> = {};
   const dailyMap: Record<string, number> = {};
 
   contactsSnap.forEach(doc => {
     const d = doc.data();
+
+    // Count handoffs across all contacts (not just sent)
+    if (d.handoff) handoffCount++;
+
     if (!d.sent) return;
 
     totalSent++;
@@ -917,10 +923,11 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
 
     // Per subject stats
     const subj: string = d.subject || "(bez predmetu)";
-    if (!subjectMap[subj]) subjectMap[subj] = { sent: 0, delivered: 0, bounced: 0 };
+    if (!subjectMap[subj]) subjectMap[subj] = { sent: 0, delivered: 0, bounced: 0, handoff: 0 };
     subjectMap[subj].sent++;
     if (d.deliveryStatus === "delivered") subjectMap[subj].delivered++;
     if (d.deliveryStatus === "bounced") subjectMap[subj].bounced++;
+    if (d.handoff) subjectMap[subj].handoff++;
 
     // 30-day daily activity
     if (d.sentAt) {
@@ -950,13 +957,16 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
       sent: s.sent,
       delivered: s.delivered,
       bounced: s.bounced,
+      handoff: s.handoff,
       successRate: s.sent > 0 ? Math.round((s.delivered / s.sent) * 100) : null,
+      responseRate: s.sent > 0 ? +((s.handoff / s.sent) * 100).toFixed(1) : null,
     }))
     .sort((a, b) => b.sent - a.sent);
 
   const deliveryRate = totalSent > 0 ? Math.round((delivered / totalSent) * 100) : null;
   const bounceRate = totalSent > 0 ? +((hardBounce / totalSent) * 100).toFixed(2) : null;
   const complaintRate = totalSent > 0 ? +((complaint / totalSent) * 100).toFixed(2) : null;
+  const responseRate = totalSent > 0 ? +((handoffCount / totalSent) * 100).toFixed(1) : null;
 
   return {
     totalSent,
@@ -964,6 +974,8 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
     hardBounce,
     softBounce,
     complaint,
+    handoffCount,
+    responseRate,
     deliveryRate,
     bounceRate,
     complaintRate,
@@ -1088,4 +1100,82 @@ export const getResendStatus = functions.https.onCall(async (data, context) => {
       dailyLimit: 100,
     },
   };
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMAP INBOUND — automatický handoff pri odpovedi kontaktu
+// ─────────────────────────────────────────────────────────────────────────────
+export const checkInboundReplies = functions.pubsub.schedule("every 15 minutes").onRun(async () => {
+  const imapDoc = await db.collection("settings").doc("imap").get();
+  if (!imapDoc.exists) {
+    console.log("checkInboundReplies: IMAP not configured, skipping");
+    return;
+  }
+
+  const imap = imapDoc.data() as { host: string; port: number; user: string; pass: string };
+  if (!imap.host || !imap.user || !imap.pass) {
+    console.log("checkInboundReplies: incomplete IMAP settings, skipping");
+    return;
+  }
+
+  const client = new ImapFlow({
+    host: imap.host,
+    port: imap.port || 993,
+    secure: true,
+    auth: { user: imap.user, pass: imap.pass },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock("INBOX");
+
+    try {
+      // Hľadáme neprecítané emaily z posledných 24 hodín
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const messages = await client.search({ seen: false, since });
+
+      if (!messages || messages.length === 0) {
+        console.log("checkInboundReplies: no new unseen messages");
+        return;
+      }
+
+      console.log(`checkInboundReplies: found ${messages.length} unseen message(s)`);
+
+      for await (const msg of client.fetch(messages, { envelope: true })) {
+        const fromAddr = msg.envelope?.from?.[0];
+        if (!fromAddr) continue;
+
+        const fromEmail = normalizeEmail(fromAddr.address || "");
+        if (!fromEmail) continue;
+
+        // Skontroluj či je odosielateľ v kontaktoch
+        const contactSnap = await db.collection("contacts")
+          .where("email", "==", fromEmail).limit(1).get();
+
+        if (!contactSnap.empty) {
+          const contact = contactSnap.docs[0];
+          const data = contact.data();
+          // Označ len ak ešte nie je handoff
+          if (!data.handoff) {
+            await contact.ref.update({
+              handoff: true,
+              handoffAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            console.log(`checkInboundReplies: ${fromEmail} → handoff`);
+          }
+        }
+
+        // Označ správu ako prečítanú aby sme ju nespracúvali znova
+        await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
+      }
+    } finally {
+      lock.release();
+    }
+
+    await client.logout();
+  } catch (err) {
+    console.error("checkInboundReplies error:", err);
+    try { await client.logout(); } catch (_) { /* ignore */ }
+  }
 });
