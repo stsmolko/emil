@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EMIL — Email Liaison</title>
+    <title>EMIL — Efficient Mail &amp; Intelligent Liaison</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📧</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -157,6 +157,7 @@
 
         @media (min-width: 769px) {
             #navTitleShort { display: none; }
+            #mobileNavControls { display: none !important; }
         }
     </style>
 </head>
@@ -172,7 +173,7 @@
                     </svg>
                 </div>
                 <h1 class="text-3xl font-bold text-gray-900 mb-2">EMIL</h1>
-                <p class="text-gray-600">Efficient Mail & Intelligent Liaison</p>
+                <p class="text-xs text-gray-500">EMAIL LAISON</p>
             </div>
             
             <form id="loginForm" class="space-y-4">
@@ -203,34 +204,34 @@
         <!-- Navigation -->
         <nav class="bg-light-card border-b border-light-border shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between h-16">
+                <div class="flex items-center h-16 gap-3 w-full">
                     <!-- Logo + názov -->
-                    <div class="flex items-center cursor-pointer hover:opacity-80 transition" onclick="switchTab('dashboard')">
+                    <div class="flex items-center cursor-pointer hover:opacity-80 transition flex-shrink-0 min-w-0" onclick="switchTab('dashboard')">
                         <div class="gradient-bg w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center">
                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                             </svg>
                         </div>
-                        <span class="ml-3 text-xl text-gray-900 font-medium">
+                        <span class="ml-3 text-lg text-gray-800 font-semibold leading-snug whitespace-nowrap">
                             <span id="navTitleFull">Efficient Mail &amp; Intelligent Liaison</span>
                             <span id="navTitleShort">EMIL</span>
                         </span>
                     </div>
 
-                    <!-- Desktop nav -->
-                    <div id="desktopNav" class="flex items-center space-x-4">
-                        <button id="dashboardTab" class="nav-tab px-4 py-2 text-gray-900 font-medium border-b-2 border-primary">Prehľad</button>
-                        <button id="kontaktyTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Kontakty</button>
-                        <button id="blacklistTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Blacklist</button>
-                        <button id="logsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Logy</button>
-                        <button id="settingsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Správa</button>
-                        <button id="nastaveniaTab" class="nav-tab ml-4 px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Nastavenia</button>
-                        <button id="darkToggleBtn" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition" title="Prepnúť tmavý/svetlý režim">🌙</button>
-                        <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">Odhlásiť</button>
+                    <!-- Desktop nav — kompaktné taby, zarovnané doprava -->
+                    <div id="desktopNav" class="flex items-center gap-0.5 ml-auto pl-2">
+                        <button id="dashboardTab" class="nav-tab px-2.5 py-2 text-sm text-gray-900 font-medium border-b-2 border-primary">Prehľad</button>
+                        <button id="kontaktyTab" class="nav-tab px-2.5 py-2 text-sm text-gray-500 font-medium hover:text-gray-900">Kontakty</button>
+                        <button id="blacklistTab" class="nav-tab px-2.5 py-2 text-sm text-gray-500 font-medium hover:text-gray-900">Blacklist</button>
+                        <button id="logsTab" class="nav-tab px-2.5 py-2 text-sm text-gray-500 font-medium hover:text-gray-900">Logy</button>
+                        <button id="settingsTab" class="nav-tab px-2.5 py-2 text-sm text-gray-500 font-medium hover:text-gray-900">Správa</button>
+                        <button id="nastaveniaTab" class="nav-tab px-2.5 py-2 text-sm text-gray-500 font-medium hover:text-gray-900">Nastavenia</button>
+                        <button id="darkToggleBtn" class="ml-1 px-2.5 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition text-sm" title="Prepnúť tmavý/svetlý režim">🌙</button>
+                        <button id="logoutBtn" class="ml-1 px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition">Odhlásiť</button>
                     </div>
 
                     <!-- Mobile: dark toggle + hamburger -->
-                    <div class="flex items-center gap-2">
+                    <div id="mobileNavControls" class="flex items-center gap-2 flex-shrink-0 ml-auto">
                         <button id="darkToggleBtnMobile" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition" title="Prepnúť tmavý/svetlý režim">🌙</button>
                         <button id="mobileMenuBtn" class="items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition" aria-label="Menu">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,6 +256,7 @@
 
         <!-- Dashboard Section -->
         <div id="dashboardSection" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <p class="text-base text-gray-600 mb-4 font-medium tracking-wide">Efficient Mail &amp; Intelligent Liaison</p>
             <div id="dashboardQueueBanner" class="hidden mb-4 rounded-xl border px-4 py-3 text-sm leading-relaxed"></div>
             <!-- Výkonnosť kampane -->
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">

@@ -1137,19 +1137,42 @@ export const handleOptOut = functions.https.onRequest(async (req, res) => {
 export const testImapConnection = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
 
-  const smtpDoc = await db.collection("settings").doc("smtp").get();
-  if (!smtpDoc.exists) throw new functions.https.HttpsError("not-found", "Nastavenia nie sú uložené");
-  const smtp = smtpDoc.data() as SmtpSettings;
+  // UI ukladá IMAP do settings/imap (host, port, user, pass) — rovnako ako checkInboundReplies.
+  const imapDoc = await db.collection("settings").doc("imap").get();
+  let host: string | undefined;
+  let port = 993;
+  let user: string | undefined;
+  let pass: string | undefined;
 
-  if (!smtp.imapHost || !smtp.imapUser || !smtp.imapPass) {
-    throw new functions.https.HttpsError("invalid-argument", "IMAP nastavenia nie sú vyplnené");
+  if (imapDoc.exists) {
+    const im = imapDoc.data() as { host?: string; port?: number; user?: string; pass?: string };
+    host = im.host;
+    port = im.port || 993;
+    user = im.user;
+    pass = im.pass;
+  }
+
+  // Spätná kompatibilita: staršie nasadenia mohli mať imap* priamo na settings/smtp
+  if (!host || !user || !pass) {
+    const smtpDoc = await db.collection("settings").doc("smtp").get();
+    if (smtpDoc.exists) {
+      const smtp = smtpDoc.data() as SmtpSettings;
+      host = host || smtp.imapHost;
+      port = smtp.imapPort || port;
+      user = user || smtp.imapUser;
+      pass = pass || smtp.imapPass;
+    }
+  }
+
+  if (!host || !user || !pass) {
+    throw new functions.https.HttpsError("invalid-argument", "IMAP nastavenia nie sú vyplnené (ulož nastavenia s vyplneným IMAP blokom)");
   }
 
   const client = new ImapFlow({
-    host: smtp.imapHost,
-    port: smtp.imapPort || 993,
+    host,
+    port,
     secure: true,
-    auth: { user: smtp.imapUser, pass: smtp.imapPass },
+    auth: { user, pass },
     logger: false,
     tls: { rejectUnauthorized: false },
   });

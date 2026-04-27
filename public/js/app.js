@@ -125,9 +125,12 @@ const startCampaignBtn = document.getElementById('startCampaignBtn');
 const stopCampaignBtn = document.getElementById('stopCampaignBtn');
 const campaignStatusText = document.getElementById('campaignStatusText');
 const campaignMessage = document.getElementById('campaignMessage');
+const campaignUiReady =
+    startCampaignBtn && stopCampaignBtn && campaignStatusText && campaignMessage;
 
 // Load campaign status
 async function loadCampaignStatus() {
+    if (!campaignUiReady) return;
     try {
         const getCampaignStatus = httpsCallable(functions, 'getCampaignStatus');
         const result = await getCampaignStatus();
@@ -142,6 +145,7 @@ async function loadCampaignStatus() {
 }
 
 function updateCampaignUI(active) {
+    if (!campaignUiReady) return;
     if (active) {
         campaignStatusText.innerHTML = '<span class="text-green-300 font-bold">🟢 AKTÍVNA</span>';
         startCampaignBtn.classList.add('hidden');
@@ -153,7 +157,7 @@ function updateCampaignUI(active) {
     }
 }
 
-startCampaignBtn.addEventListener('click', async () => {
+if (campaignUiReady) startCampaignBtn.addEventListener('click', async () => {
     if (!spamCheckPassed) {
         const proceed = confirm(
             '⚠️ Spam checker nebol spustený alebo email nesplnil kontrolu.\n\n' +
@@ -208,7 +212,7 @@ startCampaignBtn.addEventListener('click', async () => {
     }
 });
 
-stopCampaignBtn.addEventListener('click', async () => {
+if (campaignUiReady) stopCampaignBtn.addEventListener('click', async () => {
     if (!confirm('Naozaj chcete zastaviť kampaň? Žiadne emaily sa nebudú odosielať, kým kampaň znova nespustíte.')) {
         return;
     }
@@ -253,6 +257,10 @@ stopCampaignBtn.addEventListener('click', async () => {
 });
 
 function showCampaignError(message) {
+    if (!campaignMessage) {
+        console.error('Campaign error:', message);
+        return;
+    }
     campaignMessage.className = 'mt-4 p-3 rounded-lg text-sm bg-red-500/90 text-white';
     campaignMessage.innerHTML = `
         <div class="flex items-center space-x-2">
