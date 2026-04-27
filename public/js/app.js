@@ -607,6 +607,12 @@ async function loadSchedulerHealth() {
     }
 }
 
+function getBratislavaWeekday(d) {
+    const w = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Bratislava', weekday: 'short' }).format(d);
+    const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[w] ?? 0;
+}
+
 function updateCampaignEta(remaining, dailyLimit) {
     const el = document.getElementById('campaignEta');
     if (!el) return;
@@ -617,29 +623,34 @@ function updateCampaignEta(remaining, dailyLimit) {
         return;
     }
 
-    // Scheduler: Po-Pi 7:00-21:00 (13h mínus pauza 12-13 = 12 pracovných hodín)
-    //            So 7:00-18:00 (10h mínus pauza = 9h)
-    // Interval každých 30 min, 60% šanca = ~0.6 emailu / 30 min
-    // Pracovný deň: 12h * 2 * 0.6 = ~14.4 príležitostí, So: 9h * 2 * 0.6 = ~10.8
-    // Ale daily target je random 1..lim, priemer = lim/2
-    const avgPerWorkday = Math.min(lim / 2, 14);  // Po-Pi
-    const avgPerSaturday = Math.min(lim / 2, 10); // So
+    // Zladené s backendom: Ne nie; obed 12; Po od 13; Ut–Št 7–21; Pia do 13; So do 12.
+    // Odhad „odberu“ zvyšku kontaktov podľa pomeru povolených hodín vs. Ut (13 h) a So (5 h vs. starých 9 h).
+    const avgMidWeek = Math.min(lim / 2, 14);
+    const avgSaturday = Math.min(lim / 2, 10);
 
-    // Vypočítaj reálne pracovné dni potrebné — iterujeme po dňoch
+    function avgForDow(dow) {
+        if (dow === 0) return 0;
+        if (dow === 1) return avgMidWeek * (8 / 13);  // Po: 13–21 = 8 h
+        if (dow >= 2 && dow <= 4) return avgMidWeek;   // Ut–Št: 7–11 + 13–20 = 13 h
+        if (dow === 5) return avgMidWeek * (5 / 13);  // Pia: 7–11 = 5 h (12 pauza)
+        if (dow === 6) return avgSaturday * (5 / 9);  // So: 7–11 = 5 h (predtým baseline 9 h)
+        return avgMidWeek;
+    }
+
     let days = 0;
     let leftToSend = rem;
     const cursor = new Date();
     while (leftToSend > 0 && days < 500) {
-        cursor.setDate(cursor.getDate() + 1);
-        const dow = cursor.getDay(); // 0=Ne, 6=So
-        if (dow === 0) continue;     // Nedeľa — preskočiť
-        leftToSend -= (dow === 6) ? avgPerSaturday : avgPerWorkday;
+        cursor.setTime(cursor.getTime() + 24 * 60 * 60 * 1000);
+        const dow = getBratislavaWeekday(cursor);
+        if (dow === 0) continue;
+        leftToSend -= avgForDow(dow);
         days++;
     }
 
     const endDate = new Date();
-    endDate.setDate(endDate.getDate() + days);
-    const dateStr = endDate.toLocaleDateString('sk-SK', { day: 'numeric', month: 'long' });
+    endDate.setTime(endDate.getTime() + days * 24 * 60 * 60 * 1000);
+    const dateStr = endDate.toLocaleDateString('sk-SK', { day: 'numeric', month: 'long', timeZone: 'Europe/Bratislava' });
     el.innerHTML = `📅 Zostatok <strong>${rem}</strong> kontaktov — odhadovaný koniec okolo <strong>${dateStr}</strong> (~${days} dní)`;
 }
 

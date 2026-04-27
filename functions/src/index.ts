@@ -123,35 +123,57 @@ const getRandomDelay = (): number => {
   return Math.floor(Math.random() * 120000) + 60000;
 };
 
-const WORKING_HOURS_END_SATURDAY = 18;
+/** Hodina (0–23) a deň v týždni (0=Ne … 6=So) v Europe/Bratislava */
+const getBratislavaClock = (): { hour: number; day: number } => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Bratislava",
+    weekday: "short",
+    hour: "numeric",
+    hour12: false,
+  }).formatToParts(new Date());
+  const m: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") m[p.type] = p.value;
+  }
+  const dayMap: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  const day = dayMap[m.weekday || "Sun"] ?? 0;
+  const hour = parseInt(m.hour || "0", 10);
+  return { hour, day };
+};
 
+/**
+ * Odosielanie: Ne vôbec; obed 12:00–12:59 vždy nie.
+ * Po až od 13:00; Ut–Št 7:00–21:00; Pia len do 13:00 (ráno po obede už nie);
+ * So len do 12:00 (7–11).
+ */
 const isWorkingHours = (): boolean => {
-  const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const { hour, day } = getBratislavaClock();
 
-  // No emails on Sunday
-  if (day === 0) {
-    return false;
+  if (day === 0) return false;
+
+  if (hour === 12) return false;
+
+  if (day === 1) {
+    return hour >= 13 && hour < WORKING_HOURS_END;
   }
-
-  // Lunch break: 12:00 - 13:00 (no emails during lunch)
-  if (hour === 12) {
-    return false;
+  if (day === 5) {
+    return hour >= WORKING_HOURS_START && hour < 13;
   }
-
-  // Saturday: 7:00 - 18:00
   if (day === 6) {
-    return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END_SATURDAY;
+    return hour >= WORKING_HOURS_START && hour < 12;
   }
-
-  // Monday–Friday: 7:00 - 21:00
   return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END;
 };
 
 const getTodayDateString = (): string => {
-  const today = new Date();
-  return today.toISOString().split("T")[0];
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Bratislava",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 };
 
 // Backend poistka — HARD vulgárne slová nesmú nikdy odísť
@@ -302,7 +324,9 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   }
 
   if (!isWorkingHours()) {
-    console.log("Outside working hours (Mon-Sat, 7:00-21:00, lunch break 12:00-13:00). Skipping.");
+    console.log(
+      "Outside working hours (Europe/Bratislava: Ne nie; Po od 13; Ut–Št 7–21; Pia do 13; So do 12; obed 12 vždy nie). Skipping."
+    );
     return;
   }
 
