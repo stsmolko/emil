@@ -291,51 +291,6 @@
                 <div id="rep30DayLabels" class="flex gap-1 mt-1 text-xs text-gray-400"></div>
             </div>
 
-            <!-- Kontaktový prehľad -->
-            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 sm:px-6 py-5 mb-6 space-y-5">
-                <!-- Databáza -->
-                <div>
-                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">👥 Databáza</span>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
-                            <span class="text-sm text-gray-600 font-medium">Celkovo</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-gray-900 tabular-nums mt-1" id="statTotal">0</span>
-                        </div>
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
-                            <span class="text-sm text-gray-600 font-medium">Oboslané</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-green-600 tabular-nums mt-1" id="statSentAll">0</span>
-                        </div>
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
-                            <span class="text-sm text-gray-600 font-medium">Zostávajúce</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-blue-600 tabular-nums mt-1" id="statRemaining">0</span>
-                        </div>
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help col-span-2 sm:col-span-1" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
-                            <span class="text-sm text-gray-600 font-medium">Chybné</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-red-500 tabular-nums mt-1" id="statErrors">0</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-light-border"></div>
-                <!-- Blacklist -->
-                <div>
-                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">🚫 Blacklist</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
-                            <span class="text-sm text-gray-600 font-medium">Bounce</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-red-600 tabular-nums mt-1" id="repBlBounce">—</span>
-                        </div>
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
-                            <span class="text-sm text-gray-600 font-medium">Spam</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-orange-500 tabular-nums mt-1" id="repBlComplaint">—</span>
-                        </div>
-                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
-                            <span class="text-sm text-gray-600 font-medium">Manuálne</span>
-                            <span class="text-2xl sm:text-3xl font-bold text-gray-700 tabular-nums mt-1" id="repBlManual">—</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Campaign Control -->
             <div class="mb-8">
                 <div id="campaignControl" class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 shadow-lg">
@@ -419,6 +374,51 @@
                                 <p class="text-indigo-200/95 text-[10px] sm:text-xs mt-3 text-center leading-snug border-t border-white/10 pt-3"><strong class="text-indigo-100">Obed:</strong> v čase <strong class="text-white">12:00–12:59</strong> sa neposiela. Časy sú vždy podľa Bratislavy.</p>
                     </div>
                     <div id="campaignMessage" class="hidden mt-4 p-3 rounded-lg text-sm bg-white/20 text-white"></div>
+                </div>
+            </div>
+
+            <!-- Kontaktový prehľad -->
+            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 sm:px-6 py-5 mb-6 space-y-5">
+                <!-- Databáza -->
+                <div>
+                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">👥 Databáza</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
+                            <span class="text-sm text-gray-600 font-medium">Celkovo</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-gray-900 tabular-nums mt-1" id="statTotal">0</span>
+                        </div>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
+                            <span class="text-sm text-gray-600 font-medium">Oboslané</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-green-600 tabular-nums mt-1" id="statSentAll">0</span>
+                        </div>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
+                            <span class="text-sm text-gray-600 font-medium">Zostávajúce</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-blue-600 tabular-nums mt-1" id="statRemaining">0</span>
+                        </div>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help col-span-2 sm:col-span-1" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
+                            <span class="text-sm text-gray-600 font-medium">Chybné</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-red-500 tabular-nums mt-1" id="statErrors">0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="border-t border-light-border"></div>
+                <!-- Blacklist -->
+                <div>
+                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">🚫 Blacklist</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
+                            <span class="text-sm text-gray-600 font-medium">Bounce</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-red-600 tabular-nums mt-1" id="repBlBounce">—</span>
+                        </div>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
+                            <span class="text-sm text-gray-600 font-medium">Spam</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-orange-500 tabular-nums mt-1" id="repBlComplaint">—</span>
+                        </div>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
+                            <span class="text-sm text-gray-600 font-medium">Manuálne</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-gray-700 tabular-nums mt-1" id="repBlManual">—</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
