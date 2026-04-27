@@ -281,6 +281,13 @@
                 </div>
             </div>
 
+            <!-- 30-day activity graph -->
+            <div class="bg-light-card rounded-xl border border-light-border p-6 shadow-sm mb-6">
+                <h2 class="text-sm font-bold text-gray-700 mb-4 cursor-help inline-block" data-tip="Počet odoslaných emailov za každý deň v posledných 30 dňoch. Prázdne dni = kampaň bola pozastavená alebo neboli kontakty.">📅 Aktivita posledných 30 dní</h2>
+                <div id="rep30DayChart" class="flex items-end gap-1 h-24"></div>
+                <div id="rep30DayLabels" class="flex gap-1 mt-1 text-xs text-gray-400"></div>
+            </div>
+
             <!-- Kontaktový prehľad -->
             <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 py-4 mb-6 space-y-3">
                 <!-- Databáza riadok -->
@@ -325,13 +332,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- 30-day activity graph -->
-            <div class="bg-light-card rounded-xl border border-light-border p-6 shadow-sm mb-6">
-                <h2 class="text-sm font-bold text-gray-700 mb-4 cursor-help inline-block" data-tip="Počet odoslaných emailov za každý deň v posledných 30 dňoch. Prázdne dni = kampaň bola pozastavená alebo neboli kontakty.">📅 Aktivita posledných 30 dní</h2>
-                <div id="rep30DayChart" class="flex items-end gap-1 h-24"></div>
-                <div id="rep30DayLabels" class="flex gap-1 mt-1 text-xs text-gray-400"></div>
             </div>
 
             <!-- Campaign Control -->
