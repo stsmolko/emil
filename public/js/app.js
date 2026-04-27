@@ -568,8 +568,27 @@ function updateCampaignEta(remaining, dailyLimit) {
         el.innerHTML = '🏁 Všetky kontakty odoslané';
         return;
     }
-    const avgPerDay = Math.max(1, Math.round(lim / 2));
-    const days = Math.ceil(rem / avgPerDay);
+
+    // Scheduler: Po-Pi 7:00-21:00 (13h mínus pauza 12-13 = 12 pracovných hodín)
+    //            So 7:00-18:00 (10h mínus pauza = 9h)
+    // Interval každých 30 min, 60% šanca = ~0.6 emailu / 30 min
+    // Pracovný deň: 12h * 2 * 0.6 = ~14.4 príležitostí, So: 9h * 2 * 0.6 = ~10.8
+    // Ale daily target je random 1..lim, priemer = lim/2
+    const avgPerWorkday = Math.min(lim / 2, 14);  // Po-Pi
+    const avgPerSaturday = Math.min(lim / 2, 10); // So
+
+    // Vypočítaj reálne pracovné dni potrebné — iterujeme po dňoch
+    let days = 0;
+    let leftToSend = rem;
+    const cursor = new Date();
+    while (leftToSend > 0 && days < 500) {
+        cursor.setDate(cursor.getDate() + 1);
+        const dow = cursor.getDay(); // 0=Ne, 6=So
+        if (dow === 0) continue;     // Nedeľa — preskočiť
+        leftToSend -= (dow === 6) ? avgPerSaturday : avgPerWorkday;
+        days++;
+    }
+
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + days);
     const dateStr = endDate.toLocaleDateString('sk-SK', { day: 'numeric', month: 'long' });
@@ -2459,6 +2478,7 @@ document.getElementById('blacklistInput').addEventListener('keydown', async (e) 
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 let allLogsCache = [];
 let logsFilterState = 'all';
+let logsContactFilter = null; // filter by contact name
 
 const EVENT_CONFIG = {
     sent:           { label: '✅ Odoslané',   cls: 'bg-green-100 text-green-700' },
@@ -2489,9 +2509,12 @@ async function loadLogs() {
 function renderLogs() {
     const tbody = document.getElementById('logsTable');
     if (!tbody) return;
-    const data = logsFilterState === 'all'
+    let data = logsFilterState === 'all'
         ? allLogsCache
         : allLogsCache.filter(l => l.event === logsFilterState);
+    if (logsContactFilter) {
+        data = data.filter(l => l.contactName === logsContactFilter || l.contactEmail === logsContactFilter);
+    }
 
     if (!data.length) {
         tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">Žiadne záznamy.</td></tr>`;
@@ -2504,7 +2527,9 @@ function renderLogs() {
             return `<tr class="hover:bg-gray-50 transition">
                 <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${time}</td>
                 <td class="px-4 py-3"><span class="px-2 py-0.5 text-xs font-medium rounded-full ${cfg.cls}">${cfg.label}</span></td>
-                <td class="px-4 py-3 text-sm text-gray-700">${log.contactName || '—'}</td>
+                <td class="px-4 py-3 text-sm">${log.contactName
+                    ? `<button onclick="filterLogsByContact('${(log.contactName||'').replace(/'/g,"\\'")}')" class="text-indigo-600 hover:underline font-medium text-left">${log.contactName}</button>`
+                    : '<span class="text-gray-300">—</span>'}</td>
                 <td class="px-4 py-3 text-xs text-gray-500">${log.contactEmail || '—'}</td>
                 <td class="px-4 py-3 text-xs text-gray-600 max-w-xs">${subj}</td>
                 <td class="px-4 py-3 text-xs">${detail}</td>
@@ -2524,6 +2549,26 @@ function renderLogs() {
 window.filterLogs = function(type) {
     logsFilterState = type;
     renderLogs();
+};
+
+window.filterLogsByContact = function(name) {
+    logsContactFilter = logsContactFilter === name ? null : name;
+    renderLogs();
+    // Zobraz/skry badge
+    let badge = document.getElementById('logsContactBadge');
+    if (!badge) {
+        badge = document.createElement('div');
+        badge.id = 'logsContactBadge';
+        badge.className = 'flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded-lg';
+        const header = document.querySelector('#logsSection .flex.flex-wrap.items-center.justify-between');
+        if (header) header.appendChild(badge);
+    }
+    if (logsContactFilter) {
+        badge.innerHTML = `👤 ${logsContactFilter} <button onclick="filterLogsByContact('${logsContactFilter.replace(/'/g,"\\'")}')" class="ml-1 text-indigo-400 hover:text-indigo-700 font-bold">×</button>`;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
 };
 
 const refreshLogsBtn = document.getElementById('refreshLogsBtn');

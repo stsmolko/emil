@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { ImapFlow } from "imapflow";
+import { promises as dnsPromises } from "dns";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -18,6 +19,25 @@ const normalizeEmail = (email: string): string => {
     return local.replace(/\./g, "") + "@" + domain;
   }
   return lower;
+};
+
+// RFC 5322 — zjednodušený regex pre bežné emaily
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+
+// MX cache — aby sme sa nepytali DNS opakovane na tú istú doménu
+const mxCache: Record<string, boolean> = {};
+
+const hasMxRecord = async (domain: string): Promise<boolean> => {
+  if (domain in mxCache) return mxCache[domain];
+  try {
+    const records = await dnsPromises.resolveMx(domain);
+    const result = Array.isArray(records) && records.length > 0;
+    mxCache[domain] = result;
+    return result;
+  } catch {
+    mxCache[domain] = false;
+    return false;
+  }
 };
 
 interface Contact {
@@ -417,6 +437,27 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
   if (TOXIC_DOMAINS.includes(contactDomain)) {
     console.log(`Toxic domain detected for ${contactData.email}. Skipping permanently.`);
     await randomContact.ref.update({ sent: true, error: "Toxic domain — jednorazový email" });
+    return;
+  }
+
+  // Regex validácia formátu emailu
+  if (!EMAIL_REGEX.test(contactData.email.trim())) {
+    console.log(`Invalid email format: ${contactData.email}. Skipping permanently.`);
+    await randomContact.ref.update({ sent: true, error: "Neplatný formát emailu" });
+    await updateStats(false, "Neplatný formát emailu", {
+      event: "error", contactName: contactData.name, contactEmail: contactData.email,
+    });
+    return;
+  }
+
+  // MX check — overí že doména prijíma emaily
+  const domainHasMx = await hasMxRecord(contactDomain);
+  if (!domainHasMx) {
+    console.log(`No MX records for domain ${contactDomain} (${contactData.email}). Skipping permanently.`);
+    await randomContact.ref.update({ sent: true, error: `Doména ${contactDomain} nemá MX záznamy` });
+    await updateStats(false, `Doména ${contactDomain} nemá MX záznamy`, {
+      event: "error", contactName: contactData.name, contactEmail: contactData.email,
+    });
     return;
   }
 
