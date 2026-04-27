@@ -343,34 +343,56 @@
                         <div class="text-white text-center sm:text-left">
                             <h3 class="text-lg font-semibold mb-2">Kontrola kampane</h3>
                             <p class="text-indigo-100 text-sm">Spustite alebo zastavte automatické rozosielanie emailov</p>
-                            <p class="text-indigo-200/95 text-xs mt-2 font-medium">Scheduler kontroluje front každých <strong class="text-white font-semibold">30 minút</strong> · časová zóna <strong class="text-white font-semibold">Europe / Bratislava</strong></p>
-                            <div class="mt-3 rounded-xl bg-black/20 border border-white/15 backdrop-blur-sm p-3 sm:p-4 text-left w-full max-w-lg mx-auto sm:mx-0">
-                                <p class="text-white text-xs font-bold uppercase tracking-wide mb-2 opacity-95">Harmonogram odosielania</p>
-                                <table class="w-full text-xs sm:text-sm text-indigo-50 border-collapse">
-                                    <tbody>
-                                        <tr class="border-b border-white/10">
-                                            <th scope="row" class="py-2 pr-3 sm:pr-4 text-left font-semibold text-white align-top whitespace-nowrap">Pondelok</th>
-                                            <td class="py-2 text-indigo-100">13:00 – 21:00</td>
-                                        </tr>
-                                        <tr class="border-b border-white/10">
-                                            <th scope="row" class="py-2 pr-3 sm:pr-4 text-left font-semibold text-white align-top">Utorok – štvrtok</th>
-                                            <td class="py-2 text-indigo-100">7:00 – 21:00</td>
-                                        </tr>
-                                        <tr class="border-b border-white/10">
-                                            <th scope="row" class="py-2 pr-3 sm:pr-4 text-left font-semibold text-white align-top">Piatok</th>
-                                            <td class="py-2 text-indigo-100">7:00 – do 13:00 <span class="text-indigo-200/90 block sm:inline sm:ml-1">(iba doobeda)</span></td>
-                                        </tr>
-                                        <tr class="border-b border-white/10">
-                                            <th scope="row" class="py-2 pr-3 sm:pr-4 text-left font-semibold text-white align-top">Sobota</th>
-                                            <td class="py-2 text-indigo-100">7:00 – do 12:00</td>
-                                        </tr>
-                                        <tr>
-                                            <th scope="row" class="py-2 pr-3 sm:pr-4 text-left font-semibold text-white align-top">Nedeľa</th>
-                                            <td class="py-2 text-indigo-200">bez odosielania</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                                <p class="text-indigo-200/90 text-[11px] sm:text-xs mt-3 pt-2 border-t border-white/10 leading-snug"><strong class="text-indigo-100">Obed:</strong> v každý deň, keď sa môže posielať, je prestávka <strong class="text-white">12:00 – 12:59</strong> — v tom čase sa email neodošle.</p>
+                            <p class="text-indigo-200/95 text-xs mt-2 font-medium">Kontrola frontu každých <strong class="text-white font-semibold">30 min</strong> · <strong class="text-white font-semibold">Europe / Bratislava</strong></p>
+                            <div class="mt-3 w-full max-w-3xl mx-auto sm:mx-0 rounded-xl bg-black/20 border border-white/15 backdrop-blur-sm p-3 sm:p-4">
+                                <p class="text-center sm:text-left text-white text-xs font-bold tracking-wide mb-3">Týždenný rozvrh odosielania</p>
+                                <div class="overflow-x-auto -mx-1 px-1">
+                                    <div class="grid grid-cols-7 gap-1.5 sm:gap-2 min-w-[300px] sm:min-w-0">
+                                        <!-- Po -->
+                                        <div class="rounded-lg bg-emerald-500/25 border border-emerald-300/40 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">Po</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">13–21</span>
+                                            <span class="text-[9px] sm:text-[10px] text-emerald-100/90 mt-auto pt-1 leading-tight">od 13:00</span>
+                                        </div>
+                                        <!-- Ut -->
+                                        <div class="rounded-lg bg-white/15 border border-white/25 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">Ut</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">7–21</span>
+                                            <span class="text-[9px] sm:text-[10px] text-indigo-200 mt-auto pt-1 leading-tight">obed 12–13</span>
+                                        </div>
+                                        <!-- St -->
+                                        <div class="rounded-lg bg-white/15 border border-white/25 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">St</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">7–21</span>
+                                            <span class="text-[9px] sm:text-[10px] text-indigo-200 mt-auto pt-1 leading-tight">obed 12–13</span>
+                                        </div>
+                                        <!-- Št -->
+                                        <div class="rounded-lg bg-white/15 border border-white/25 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">Št</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">7–21</span>
+                                            <span class="text-[9px] sm:text-[10px] text-indigo-200 mt-auto pt-1 leading-tight">obed 12–13</span>
+                                        </div>
+                                        <!-- Pia -->
+                                        <div class="rounded-lg bg-amber-500/20 border border-amber-300/35 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">Pia</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">7–13</span>
+                                            <span class="text-[9px] sm:text-[10px] text-amber-100/90 mt-auto pt-1 leading-tight">iba doobeda</span>
+                                        </div>
+                                        <!-- So -->
+                                        <div class="rounded-lg bg-white/15 border border-white/25 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center min-h-[5.5rem] sm:min-h-[6.5rem]">
+                                            <span class="text-[10px] sm:text-xs font-bold text-white leading-none">So</span>
+                                            <span class="text-sm sm:text-base font-bold text-white tabular-nums mt-2 leading-tight">7–12</span>
+                                            <span class="text-[9px] sm:text-[10px] text-indigo-200 mt-auto pt-1 leading-tight">obed 12–13</span>
+                                        </div>
+                                        <!-- Ne -->
+                                        <div class="rounded-lg bg-black/35 border border-white/10 px-1 py-2 sm:px-2 sm:py-3 flex flex-col items-center text-center justify-center min-h-[5.5rem] sm:min-h-[6.5rem] opacity-90">
+                                            <span class="text-[10px] sm:text-xs font-bold text-indigo-200 leading-none">Ne</span>
+                                            <span class="text-xl sm:text-2xl font-light text-indigo-300/80 mt-1">—</span>
+                                            <span class="text-[9px] sm:text-[10px] text-indigo-300/80 mt-1 leading-tight">voľno</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-indigo-200/95 text-[10px] sm:text-xs mt-3 text-center sm:text-left leading-snug border-t border-white/10 pt-3"><strong class="text-indigo-100">Obed:</strong> v čase <strong class="text-white">12:00–12:59</strong> sa neposiela. Časy sú vždy podľa Bratislavy.</p>
                             </div>
                         </div>
                         <div class="flex flex-col sm:flex-row items-center sm:space-x-4 gap-3">
