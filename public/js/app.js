@@ -115,6 +115,9 @@ logoutBtn.addEventListener('click', async () => {
     await signOut(auth);
 });
 
+const logoutBtnMobile = document.getElementById('logoutBtnMobile');
+if (logoutBtnMobile) logoutBtnMobile.addEventListener('click', async () => { await signOut(auth); });
+
 // Campaign control
 const startCampaignBtn = document.getElementById('startCampaignBtn');
 const stopCampaignBtn = document.getElementById('stopCampaignBtn');
@@ -2679,3 +2682,28 @@ darkToggleBtn.addEventListener('click', () => {
     localStorage.setItem('emil-dark', isDark ? '0' : '1');
     applyDarkMode(!isDark);
 });
+
+// Mobile dark toggle (duplicated button in nav)
+const darkToggleBtnMobile = document.getElementById('darkToggleBtnMobile');
+if (darkToggleBtnMobile) {
+    darkToggleBtnMobile.addEventListener('click', () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        localStorage.setItem('emil-dark', isDark ? '0' : '1');
+        applyDarkMode(!isDark);
+    });
+}
+
+// Mobile hamburger menu
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileMenu    = document.getElementById('mobileMenu');
+if (mobileMenuBtn && mobileMenu) {
+    mobileMenuBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('open');
+    });
+    document.querySelectorAll('[data-mobiletab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchTab(btn.dataset.mobiletab);
+            mobileMenu.classList.remove('open');
+        });
+    });
+}

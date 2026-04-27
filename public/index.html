@@ -105,7 +105,10 @@
         html.dark .bg-gray-50                   { background:#1e293b !important; }
         html.dark .bg-gray-100                  { background:#293548 !important; }
         html.dark nav,
+        html.dark #mobileMenu,
         html.dark .bg-white\/95                 { background:rgba(15,23,42,0.97) !important; }
+        html.dark #mobileMenu .mobile-nav-item  { color:#f1f5f9 !important; }
+        html.dark #mobileMenu .mobile-nav-item:hover { background:#1e293b !important; }
         html.dark input,
         html.dark textarea,
         html.dark select                        { background:#0f172a !important; color:#f1f5f9 !important; border-color:#334155 !important; }
@@ -119,6 +122,31 @@
         html.dark .bg-green-50                  { background:#0f2d1f !important; }
         html.dark .bg-yellow-50                 { background:#2d2200 !important; }
         html.dark #emil-tooltip                 { background:#f1f5f9; color:#0f172a; }
+
+        /* ── Mobile nav ── */
+        #mobileMenuBtn { display: none; }
+        #mobileMenu    { display: none; }
+
+        @media (max-width: 768px) {
+            #desktopNav    { display: none !important; }
+            #mobileMenuBtn { display: flex; }
+
+            #mobileMenu.open { display: flex; }
+
+            /* Tabuľky — horizontálny scroll */
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+            /* Metric karty — 2 stĺpce na mobile */
+            .metric-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+            /* Skryť dlhý nadpis, ukázať skrátený */
+            #navTitleFull  { display: none; }
+            #navTitleShort { display: inline; }
+        }
+
+        @media (min-width: 769px) {
+            #navTitleShort { display: none; }
+        }
     </style>
 </head>
 <body class="bg-light-bg text-gray-900 min-h-screen">
@@ -165,41 +193,52 @@
         <nav class="bg-light-card border-b border-light-border shadow-sm">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between h-16">
+                    <!-- Logo + názov -->
                     <div class="flex items-center cursor-pointer hover:opacity-80 transition" onclick="switchTab('dashboard')">
-                        <div class="gradient-bg w-10 h-10 rounded-lg flex items-center justify-center">
+                        <div class="gradient-bg w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center">
                             <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                             </svg>
                         </div>
-                        <span class="ml-3 text-xl text-gray-900">
-                            <span class="font-medium">Efficient Mail & Intelligent Liaison</span>
+                        <span class="ml-3 text-xl text-gray-900 font-medium">
+                            <span id="navTitleFull">Efficient Mail &amp; Intelligent Liaison</span>
+                            <span id="navTitleShort">EMIL</span>
                         </span>
                     </div>
-                    <div class="flex items-center space-x-4">
-                        <button id="dashboardTab" class="nav-tab px-4 py-2 text-gray-900 font-medium border-b-2 border-primary">
-                            Prehľad
-                        </button>
-                        <button id="kontaktyTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
-                            Kontakty
-                        </button>
-                        <button id="blacklistTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
-                            Blacklist
-                        </button>
-                        <button id="logsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
-                            Logy
-                        </button>
-                        <button id="settingsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
-                            Správa
-                        </button>
-                        <button id="nastaveniaTab" class="nav-tab ml-4 px-4 py-2 text-gray-500 font-medium hover:text-gray-900">
-                            Nastavenia
-                        </button>
+
+                    <!-- Desktop nav -->
+                    <div id="desktopNav" class="flex items-center space-x-4">
+                        <button id="dashboardTab" class="nav-tab px-4 py-2 text-gray-900 font-medium border-b-2 border-primary">Prehľad</button>
+                        <button id="kontaktyTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Kontakty</button>
+                        <button id="blacklistTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Blacklist</button>
+                        <button id="logsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Logy</button>
+                        <button id="settingsTab" class="nav-tab px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Správa</button>
+                        <button id="nastaveniaTab" class="nav-tab ml-4 px-4 py-2 text-gray-500 font-medium hover:text-gray-900">Nastavenia</button>
                         <button id="darkToggleBtn" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition" title="Prepnúť tmavý/svetlý režim">🌙</button>
-                        <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
-                            Odhlásiť
+                        <button id="logoutBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">Odhlásiť</button>
+                    </div>
+
+                    <!-- Mobile: dark toggle + hamburger -->
+                    <div class="flex items-center gap-2">
+                        <button id="darkToggleBtnMobile" class="px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 transition" title="Prepnúť tmavý/svetlý režim">🌙</button>
+                        <button id="mobileMenuBtn" class="items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 transition" aria-label="Menu">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                            </svg>
                         </button>
                     </div>
                 </div>
+            </div>
+
+            <!-- Mobile dropdown menu -->
+            <div id="mobileMenu" class="flex-col border-t border-light-border">
+                <button data-mobiletab="dashboard" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">📊 Prehľad</button>
+                <button data-mobiletab="kontakty" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">👥 Kontakty</button>
+                <button data-mobiletab="blacklist" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">🚫 Blacklist</button>
+                <button data-mobiletab="logs" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">📋 Logy</button>
+                <button data-mobiletab="settings" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">✉️ Správa</button>
+                <button data-mobiletab="nastavenia" class="mobile-nav-item w-full text-left px-6 py-3 text-gray-700 font-medium hover:bg-gray-50 border-b border-light-border">⚙️ Nastavenia</button>
+                <button id="logoutBtnMobile" class="w-full text-left px-6 py-3 text-red-600 font-medium hover:bg-red-50">🚪 Odhlásiť</button>
             </div>
         </nav>
 
@@ -234,38 +273,48 @@
             </div>
 
             <!-- Kontaktový prehľad -->
-            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-6 py-4 mb-6 flex flex-wrap items-center gap-6">
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">👥 Databáza</span>
-                <div class="w-px h-5 bg-gray-200"></div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
-                    <span class="text-xs text-gray-500">Celkovo</span>
-                    <span class="text-sm font-bold text-gray-900" id="statTotal">0</span>
+            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 py-4 mb-6 space-y-3">
+                <!-- Databáza riadok -->
+                <div class="flex flex-col gap-1.5 items-center sm:items-start">
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">👥 Databáza</span>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
+                            <span class="text-xs text-gray-500">Celkovo</span>
+                            <span class="text-sm font-bold text-gray-900" id="statTotal">0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
+                            <span class="text-xs text-gray-500">Oboslané</span>
+                            <span class="text-sm font-bold text-green-600" id="statSentAll">0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
+                            <span class="text-xs text-gray-500">Zostávajúce</span>
+                            <span class="text-sm font-bold text-blue-600" id="statRemaining">0</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
+                            <span class="text-xs text-gray-500">Chybné</span>
+                            <span class="text-sm font-bold text-red-500" id="statErrors">0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
-                    <span class="text-xs text-gray-500">Oboslané</span>
-                    <span class="text-sm font-bold text-green-600" id="statSentAll">0</span>
-                </div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
-                    <span class="text-xs text-gray-500">Zostávajúce</span>
-                    <span class="text-sm font-bold text-blue-600" id="statRemaining">0</span>
-                </div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
-                    <span class="text-xs text-gray-500">Chyby dnes</span>
-                    <span class="text-sm font-bold text-red-500" id="statErrors">0</span>
-                </div>
-                <div class="w-px h-5 bg-gray-200"></div>
-                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">🚫 Blacklist</span>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
-                    <span class="text-xs text-gray-500">Bounce</span>
-                    <span class="text-sm font-bold text-red-600" id="repBlBounce">—</span>
-                </div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
-                    <span class="text-xs text-gray-500">Spam</span>
-                    <span class="text-sm font-bold text-orange-500" id="repBlComplaint">—</span>
-                </div>
-                <div class="flex items-center gap-2 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
-                    <span class="text-xs text-gray-500">Manuálne</span>
-                    <span class="text-sm font-bold text-gray-500" id="repBlManual">—</span>
+                <!-- Oddeľovač -->
+                <div class="border-t border-light-border"></div>
+                <!-- Blacklist riadok -->
+                <div class="flex flex-col gap-1.5 items-center sm:items-start">
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">🚫 Blacklist</span>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
+                            <span class="text-xs text-gray-500">Bounce</span>
+                            <span class="text-sm font-bold text-red-600" id="repBlBounce">—</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
+                            <span class="text-xs text-gray-500">Spam</span>
+                            <span class="text-sm font-bold text-orange-500" id="repBlComplaint">—</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
+                            <span class="text-xs text-gray-500">Manuálne</span>
+                            <span class="text-sm font-bold text-gray-500" id="repBlManual">—</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -279,14 +328,14 @@
             <!-- Campaign Control -->
             <div class="mb-8">
                 <div id="campaignControl" class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 shadow-lg">
-                    <div class="flex items-center justify-between">
-                        <div class="text-white">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div class="text-white text-center sm:text-left">
                             <h3 class="text-lg font-semibold mb-2">Kontrola kampane</h3>
                             <p class="text-indigo-100 text-sm">Spustite alebo zastavte automatické rozosielanie emailov</p>
                             <p class="text-indigo-200 text-xs mt-1">Scheduler: každých 30 minút (Po–Pi 7:00–21:00 | So 7:00–18:00 | pauza 12:00–13:00)</p>
                         </div>
-                        <div class="flex items-center space-x-4">
-                            <div id="campaignStatus" class="text-right mr-4">
+                        <div class="flex flex-col sm:flex-row items-center sm:space-x-4 gap-3">
+                            <div id="campaignStatus" class="text-center sm:text-right sm:mr-4">
                                 <p class="text-white font-semibold text-sm">Status:</p>
                                 <p id="campaignStatusText" class="text-yellow-300 text-xs font-bold">⏸️ POZASTAVENÁ</p>
                             </div>
@@ -372,10 +421,10 @@
                     </div>
                     <p class="text-xs text-gray-400 mb-4">Jediná optimalizačná metrika bez open-rate trackingu — ktoré predmety servery prijímajú.</p>
                     <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
+                        <table class="w-full text-sm" style="min-width:520px">
                             <thead>
                             <tr class="text-xs text-gray-500 border-b border-gray-100">
-                                <th class="text-left py-2 pr-4">Predmet</th>
+                                <th class="text-left py-2 pr-4"><span class="hidden sm:inline">📋 </span>Predmet<span class="block sm:hidden text-base">📋</span></th>
                                 <th class="watchdog-sort text-right py-2 px-2 cursor-pointer select-none hover:text-gray-900" data-sort="sent" data-tip="Celkový počet emailov odoslaných s týmto predmetom">Odoslané<span class="sort-indicator text-gray-400"> ↕</span></th>
                                 <th class="watchdog-sort text-right py-2 px-2 cursor-pointer select-none hover:text-gray-900" data-sort="delivered" data-tip="Počet emailov potvrdených serverom príjemcu (webhook email.delivered)">Doručené<span class="sort-indicator text-gray-400"> ↕</span></th>
                                 <th class="watchdog-sort text-right py-2 px-2 cursor-pointer select-none hover:text-gray-900" data-sort="bounced" data-tip="Počet hard bounce — adresa neexistuje alebo odmietla doručenie. Vysoký bounce = zlý predmet alebo stará databáza.">Bounce<span class="sort-indicator text-gray-400"> ↕</span></th>
@@ -449,17 +498,17 @@
                     <div class="flex flex-wrap items-center gap-2 mt-4">
                         <input type="text" id="contactSearch" placeholder="Hľadať podľa mena alebo emailu..."
                                class="flex-1 min-w-48 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:outline-none">
-                        <div class="flex gap-1">
-                            <button data-filter="all"     class="contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-900 text-white transition">Všetci</button>
-                            <button data-filter="waiting" class="contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">⏳ Čaká</button>
-                            <button data-filter="sent"    class="contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">✅ Odoslané</button>
-                            <button data-filter="handoff" class="contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">✋ Riešim osobne</button>
-                            <button data-filter="blacklisted" class="contact-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">🚫 Blacklist</button>
+                        <div class="flex flex-wrap gap-1">
+                            <button data-filter="all"     class="contact-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-900 text-white transition">Všetci</button>
+                            <button data-filter="waiting" class="contact-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">⏳ Čaká</button>
+                            <button data-filter="sent"    class="contact-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">✅ Odoslané</button>
+                            <button data-filter="handoff" class="contact-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">✋ Osobne</button>
+                            <button data-filter="blacklisted" class="contact-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition">🚫 Blacklist</button>
                         </div>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full">
+                    <table class="w-full" style="min-width:480px">
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 w-10"><input type="checkbox" id="selectAllContacts" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"></th>
@@ -519,7 +568,7 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
+                    <table class="w-full text-sm" style="min-width:560px">
                         <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
                             <tr>
                                 <th class="px-4 py-3 text-left">Čas</th>
@@ -673,18 +722,18 @@
 
                         <!-- Spam Score Checker -->
                         <div class="bg-gray-50 border border-gray-200 rounded-xl p-5">
-                            <div class="flex items-center justify-between mb-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                                 <div>
                                     <h3 class="text-sm font-bold text-gray-800">🔍 Spam Score Checker</h3>
                                     <p class="text-xs text-gray-500 mt-0.5">Skontroluje meno odosielateľa, predmety aj telo emailu</p>
                                 </div>
-                                <div class="flex gap-2 flex-shrink-0">
+                                <div class="flex gap-2">
                                     <button type="button" id="previewEmailBtn"
-                                            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
+                                            class="flex-1 sm:flex-none px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
                                         👁 Náhľad
                                     </button>
                                     <button type="button" id="spamCheckBtn"
-                                            class="px-4 py-2 gradient-bg text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                                            class="flex-1 sm:flex-none px-4 py-2 gradient-bg text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
                                         🔍 Skontrolovať
                                     </button>
                                 </div>
@@ -751,7 +800,7 @@
                         <!-- Premenné -->
                         <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
                             <p class="text-xs font-bold text-blue-800 mb-3">🔧 Dostupné premenné — použiteľné kdekoľvek v emaili</p>
-                            <div class="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                                 <div class="flex items-center gap-2"><span class="bg-white border border-blue-200 rounded px-2 py-0.5 text-xs font-mono text-blue-700">{{name}}</span><span class="text-xs text-gray-500">meno príjemcu</span></div>
                                 <div class="flex items-center gap-2"><span class="bg-white border border-blue-200 rounded px-2 py-0.5 text-xs font-mono text-blue-700">{{email}}</span><span class="text-xs text-gray-500">adresa príjemcu</span></div>
                                 <div class="flex items-center gap-2"><span class="bg-white border border-blue-200 rounded px-2 py-0.5 text-xs font-mono text-blue-700">{{date}}</span><span class="text-xs text-gray-500">celý dátum</span></div>
@@ -766,13 +815,13 @@
                     </div>
                 </div>
 
-                <div class="flex gap-3">
+                <div class="flex flex-col sm:flex-row gap-3">
                     <button type="submit" id="saveSettingsBtn"
                             class="flex-1 gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition">
                         Uložiť nastavenia
                     </button>
                     <button type="button" id="testEmailBtn"
-                            class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition flex items-center gap-2">
+                            class="sm:px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2">
                         📧 Testovací email
                     </button>
                 </div>
