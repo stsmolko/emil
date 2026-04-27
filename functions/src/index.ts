@@ -1379,6 +1379,7 @@ export const getEmailLogs = functions.https.onCall(async (data, context) => {
       contactName: row.contactName || null,
       contactEmail: row.contactEmail || null,
       subject: row.subject || null,
+      bodyPreview: row.bodyPreview || null,
       error: row.error || null,
       sentAt: row.sentAt ? row.sentAt.toDate().toISOString() : null,
     };
