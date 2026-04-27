@@ -52,14 +52,12 @@ const kontaktyTab = document.getElementById('kontaktyTab');
 const logsTab = document.getElementById('logsTab');
 const nastaveniaTab = document.getElementById('nastaveniaTab');
 const settingsTab = document.getElementById('settingsTab');
-const radyTab = document.getElementById('radyTab');
 const blacklistTab = document.getElementById('blacklistTab');
 const dashboardSection = document.getElementById('dashboardSection');
 const kontaktySection = document.getElementById('kontaktySection');
 const logsSection = document.getElementById('logsSection');
 const nastaveniaSection = document.getElementById('nastaveniaSection');
 const settingsSection = document.getElementById('settingsSection');
-const radySection = document.getElementById('radySection');
 const blacklistSection = document.getElementById('blacklistSection');
 
 const statRemaining = document.getElementById('statRemaining');
@@ -263,10 +261,6 @@ settingsTab.addEventListener('click', () => {
     switchTab('settings');
 });
 
-radyTab.addEventListener('click', () => {
-    switchTab('rady');
-});
-
 blacklistTab.addEventListener('click', () => {
     switchTab('blacklist');
 });
@@ -294,7 +288,6 @@ window.switchTab = function switchTab(tab) {
     logsSection.classList.add('hidden');
     nastaveniaSection.classList.add('hidden');
     settingsSection.classList.add('hidden');
-    radySection.classList.add('hidden');
     blacklistSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
@@ -317,10 +310,6 @@ window.switchTab = function switchTab(tab) {
         settingsTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         settingsTab.classList.remove('text-gray-500');
         settingsSection.classList.remove('hidden');
-    } else if (tab === 'rady') {
-        radyTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
-        radyTab.classList.remove('text-gray-500');
-        radySection.classList.remove('hidden');
     } else if (tab === 'blacklist') {
         blacklistTab.classList.add('border-b-2', 'border-primary', 'text-gray-900');
         blacklistTab.classList.remove('text-gray-500');
@@ -1629,16 +1618,39 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false, 
         good.push('Žiadne ALL CAPS (veľké písmená)');
     }
 
-    // 4. Výkričníky
+    // 4. Znamienka — výkričníky, otázniky v sérii, kombinovaná interpunkcia
     const exclamations = (original.match(/!/g) || []).length;
+    const questionSeries = (original.match(/\?{2,}/g) || []);
+    const exclamSeries = (original.match(/!{3,}/g) || []);
+    const mixedPunct = /[?!]{2,}/.test(original);
+    let znamienkaIssues = [];
+    let znamienkaPenalty = 0;
+
     if (exclamations > 2) {
-        issues.push(`Príliš veľa výkričníkov: <strong>${exclamations}×</strong> — max 1`);
-        penalty += 2;
+        znamienkaIssues.push(`${exclamations}× výkričník (max 1)`);
+        znamienkaPenalty += 2;
     } else if (exclamations === 2) {
-        warnings.push('Dva výkričníky — odporúčame max 1');
-        penalty += 1;
+        znamienkaIssues.push('2× výkričník — odporúčame max 1');
+        znamienkaPenalty += 1;
+    }
+    if (questionSeries.length > 0) {
+        znamienkaIssues.push(`Otázniky v sérii: <strong>${questionSeries.join(' ')}</strong>`);
+        znamienkaPenalty += 1;
+    }
+    if (exclamSeries.length > 0) {
+        znamienkaIssues.push(`Výkričníky v sérii: <strong>${exclamSeries.join(' ')}</strong>`);
+        znamienkaPenalty += 1;
+    }
+    if (mixedPunct) {
+        znamienkaIssues.push('Kombinovaná interpunkcia: <strong>?! alebo !?</strong>');
+        znamienkaPenalty += 1;
+    }
+
+    if (znamienkaIssues.length > 0) {
+        (znamienkaPenalty >= 2 ? issues : warnings).push(`Problematická interpunkcia: ${znamienkaIssues.join(', ')}`);
+        penalty += znamienkaPenalty;
     } else {
-        good.push('Výkričníky v poriadku');
+        good.push('Znamienka v poriadku');
     }
 
     // 5. Skrátené URL
@@ -1683,13 +1695,7 @@ function analyzeText(text, label, subjectForOverlap = null, checkEmoji = false, 
         }
     }
 
-    // 8. Kombinovaná interpunkcia
-    if (/[?!]{2,}/.test(original)) {
-        issues.push('Kombinovaná interpunkcia: <strong>?! alebo !?</strong>');
-        penalty += 1;
-    }
-
-    // 9. Mena + výkričník (100 €!, 50%!, 9.99$!)
+    // 8. Mena + výkričník (100 €!, 50%!, 9.99$!)
     const moneyExclaim = original.match(/[\d,.]+\s*[€$£%]\s*!|[€$£]\s*[\d,.]+\s*!/g) || [];
     if (moneyExclaim.length > 0) {
         issues.push(`Mena + výkričník: <strong>${moneyExclaim.join(', ')}</strong> — typický znak agresívneho marketingu`);
