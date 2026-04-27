@@ -41,7 +41,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const functions = getFunctions(app);
+// Callable funkcie sú nasadené v us-central1 (musí sedieť s Firebase Console).
+const functions = getFunctions(app, 'us-central1');
 
 const loginScreen = document.getElementById('loginScreen');
 const mainApp = document.getElementById('mainApp');
@@ -87,6 +88,7 @@ onAuthStateChanged(auth, (user) => {
         currentUser = user;
         loginScreen.classList.add('hidden');
         mainApp.classList.remove('hidden');
+        subscribeCampaignStatus();
         loadDashboard();
         loadReporting();
         loadResendStatus();
@@ -94,6 +96,10 @@ onAuthStateChanged(auth, (user) => {
         loadSettings();
     } else {
         currentUser = null;
+        if (unsubscribeCampaignDoc) {
+            unsubscribeCampaignDoc();
+            unsubscribeCampaignDoc = null;
+        }
         loginScreen.classList.remove('hidden');
         mainApp.classList.add('hidden');
     }
@@ -128,20 +134,25 @@ const campaignMessage = document.getElementById('campaignMessage');
 const campaignUiReady =
     startCampaignBtn && stopCampaignBtn && campaignStatusText && campaignMessage;
 
-// Load campaign status
-async function loadCampaignStatus() {
+/** Sledovanie settings/campaign priamo vo Firestore — spoľahlivejšie ako callable po refreshi (ten pri chybe falošne ukazoval „pozastavené“). */
+let unsubscribeCampaignDoc = null;
+
+function subscribeCampaignStatus() {
     if (!campaignUiReady) return;
-    try {
-        const getCampaignStatus = httpsCallable(functions, 'getCampaignStatus');
-        const result = await getCampaignStatus();
-        const status = result.data;
-        
-        updateCampaignUI(status.active);
-    } catch (error) {
-        console.error('Error loading campaign status:', error);
-        // If error, assume campaign is not active (show as paused)
-        updateCampaignUI(false);
+    if (unsubscribeCampaignDoc) {
+        unsubscribeCampaignDoc();
+        unsubscribeCampaignDoc = null;
     }
+    unsubscribeCampaignDoc = onSnapshot(
+        doc(db, 'settings', 'campaign'),
+        (snap) => {
+            const active = snap.exists && snap.data()?.active === true;
+            updateCampaignUI(active);
+        },
+        (error) => {
+            console.error('Campaign status (Firestore):', error);
+        }
+    );
 }
 
 function updateCampaignUI(active) {
@@ -555,8 +566,7 @@ async function loadDashboard() {
 
         updateDashboardQueueBanner(stats);
         
-        // Load campaign status
-        await loadCampaignStatus();
+        // Stav kampane: onSnapshot(settings/campaign) v subscribeCampaignStatus()
         
         // Load total emails sent
         await loadTotalEmailsSent();
