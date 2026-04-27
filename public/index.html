@@ -117,6 +117,9 @@
         html.dark .divide-light-border > tr,
         html.dark .divide-y > tr                { border-color:#334155 !important; }
         html.dark .hover\:bg-gray-50:hover      { background:#293548 !important; }
+        /* Dlaždice Databáza / Blacklist na dashboarde */
+        .stat-overview-tile                       { background: rgba(249, 250, 251, 0.92); }
+        html.dark .stat-overview-tile            { background:#0f172a !important; border-color:#334155 !important; }
         html.dark .bg-indigo-50                 { background:#1e1b4b !important; }
         html.dark .bg-red-50                    { background:#2d1515 !important; }
         html.dark .bg-green-50                  { background:#0f2d1f !important; }
@@ -289,46 +292,45 @@
             </div>
 
             <!-- Kontaktový prehľad -->
-            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 py-4 mb-6 space-y-3">
-                <!-- Databáza riadok -->
-                <div class="flex flex-col gap-1.5 items-center sm:items-start">
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">👥 Databáza</span>
-                    <div class="flex items-center gap-4">
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
-                            <span class="text-xs text-gray-500">Celkovo</span>
-                            <span class="text-sm font-bold text-gray-900" id="statTotal">0</span>
+            <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 sm:px-6 py-5 mb-6 space-y-5">
+                <!-- Databáza -->
+                <div>
+                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">👥 Databáza</span>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Celkový počet kontaktov nahratých v systéme">
+                            <span class="text-sm text-gray-600 font-medium">Celkovo</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-gray-900 tabular-nums mt-1" id="statTotal">0</span>
                         </div>
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
-                            <span class="text-xs text-gray-500">Oboslané</span>
-                            <span class="text-sm font-bold text-green-600" id="statSentAll">0</span>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorým už bol odoslaný email v tejto kampani">
+                            <span class="text-sm text-gray-600 font-medium">Oboslané</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-green-600 tabular-nums mt-1" id="statSentAll">0</span>
                         </div>
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
-                            <span class="text-xs text-gray-500">Zostávajúce</span>
-                            <span class="text-sm font-bold text-blue-600" id="statRemaining">0</span>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Počet kontaktov ktorí ešte nedostali email — čaká na odoslanie">
+                            <span class="text-sm text-gray-600 font-medium">Zostávajúce</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-blue-600 tabular-nums mt-1" id="statRemaining">0</span>
                         </div>
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
-                            <span class="text-xs text-gray-500">Chybné</span>
-                            <span class="text-sm font-bold text-red-500" id="statErrors">0</span>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help col-span-2 sm:col-span-1" data-tip="Počet zlyhaných pokusov o odoslanie dnes (technické chyby, nie bounce)">
+                            <span class="text-sm text-gray-600 font-medium">Chybné</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-red-500 tabular-nums mt-1" id="statErrors">0</span>
                         </div>
                     </div>
                 </div>
-                <!-- Oddeľovač -->
                 <div class="border-t border-light-border"></div>
-                <!-- Blacklist riadok -->
-                <div class="flex flex-col gap-1.5 items-center sm:items-start">
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">🚫 Blacklist</span>
-                    <div class="flex items-center gap-4">
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
-                            <span class="text-xs text-gray-500">Bounce</span>
-                            <span class="text-sm font-bold text-red-600" id="repBlBounce">—</span>
+                <!-- Blacklist -->
+                <div>
+                    <span class="block text-center sm:text-left text-sm font-bold text-gray-700 tracking-wide mb-3">🚫 Blacklist</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Hard bounce — email adresa neexistuje alebo odmietla doručenie. Tieto kontakty sú automaticky zablokované.">
+                            <span class="text-sm text-gray-600 font-medium">Bounce</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-red-600 tabular-nums mt-1" id="repBlBounce">—</span>
                         </div>
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
-                            <span class="text-xs text-gray-500">Spam</span>
-                            <span class="text-sm font-bold text-orange-500" id="repBlComplaint">—</span>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Príjemca označil email ako spam. Poškodzuje reputáciu domény — ideálne 0.">
+                            <span class="text-sm text-gray-600 font-medium">Spam</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-orange-500 tabular-nums mt-1" id="repBlComplaint">—</span>
                         </div>
-                        <div class="flex items-center gap-1.5 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
-                            <span class="text-xs text-gray-500">Manuálne</span>
-                            <span class="text-sm font-bold text-gray-500" id="repBlManual">—</span>
+                        <div class="stat-overview-tile flex flex-col items-center sm:items-start rounded-lg px-3 py-4 border border-gray-100 cursor-help" data-tip="Kontakty manuálne pridané na blacklist (napr. ak požiadali o odhlásenie mimo systému)">
+                            <span class="text-sm text-gray-600 font-medium">Manuálne</span>
+                            <span class="text-2xl sm:text-3xl font-bold text-gray-700 tabular-nums mt-1" id="repBlManual">—</span>
                         </div>
                     </div>
                 </div>
