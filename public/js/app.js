@@ -2553,7 +2553,7 @@ function renderLogs() {
     }
 
     if (!data.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">Žiadne záznamy.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400">Žiadne záznamy.</td></tr>`;
     } else {
         tbody.innerHTML = data.map(log => {
             const cfg = EVENT_CONFIG[log.event] || { label: log.event, cls: 'bg-gray-100 text-gray-600' };
@@ -2565,6 +2565,7 @@ function renderLogs() {
                 ? `<span class="truncate max-w-xs block" title="${log.subject}">${log.subject}</span>${preview}`
                 : '<span class="text-gray-300">—</span>';
             const detail = log.error ? `<span class="text-red-500 text-xs">${log.error}</span>` : '<span class="text-gray-300">—</span>';
+            const logIdx = allLogsCache.indexOf(log);
             return `<tr class="hover:bg-gray-50 transition">
                 <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${time}</td>
                 <td class="px-4 py-3"><span class="px-2 py-0.5 text-xs font-medium rounded-full ${cfg.cls}">${cfg.label}</span></td>
@@ -2574,6 +2575,13 @@ function renderLogs() {
                 <td class="px-4 py-3 text-xs text-gray-500">${log.contactEmail || '—'}</td>
                 <td class="px-4 py-3 text-xs text-gray-600 max-w-xs">${subj}</td>
                 <td class="px-4 py-3 text-xs">${detail}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="openLogModal(${logIdx})" class="text-gray-300 hover:text-indigo-500 transition" title="Zobraziť detail">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                        </svg>
+                    </button>
+                </td>
             </tr>`;
         }).join('');
     }
@@ -2614,6 +2622,55 @@ window.filterLogsByContact = function(name) {
 
 const refreshLogsBtn = document.getElementById('refreshLogsBtn');
 if (refreshLogsBtn) refreshLogsBtn.addEventListener('click', loadLogs);
+
+// ─── Log Detail Modal ─────────────────────────────────────────────────────────
+
+const EVENT_LABELS = {
+    sent: 'Odoslané', delivered: 'Doručené', error: 'Chyba',
+    bounce: 'Bounce', spam_complaint: 'Spam', blocked: 'Blokované', handoff: 'Handoff',
+};
+
+window.openLogModal = function(idx) {
+    const log = allLogsCache[idx];
+    if (!log) return;
+    const modal = document.getElementById('logDetailModal');
+    const cfg = EVENT_CONFIG[log.event] || { label: log.event, cls: 'bg-gray-100 text-gray-600' };
+    document.getElementById('ldContact').textContent = log.contactName || '—';
+    document.getElementById('ldEmail').textContent = log.contactEmail || '—';
+    document.getElementById('ldTime').textContent = log.sentAt ? new Date(log.sentAt).toLocaleString('sk-SK') : '—';
+    document.getElementById('ldEvent').innerHTML = `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${cfg.cls}">${cfg.label}</span>`;
+    document.getElementById('ldSubject').textContent = log.subject || '—';
+
+    const bodyWrap = document.getElementById('ldBodyWrap');
+    const bodyEl = document.getElementById('ldBody');
+    if (log.bodyPreview) {
+        bodyEl.textContent = log.bodyPreview;
+        bodyWrap.classList.remove('hidden');
+    } else {
+        bodyWrap.classList.add('hidden');
+    }
+
+    const errorWrap = document.getElementById('ldErrorWrap');
+    const errorEl = document.getElementById('ldError');
+    if (log.error) {
+        errorEl.textContent = log.error;
+        errorWrap.classList.remove('hidden');
+    } else {
+        errorWrap.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeLogModal = function() {
+    document.getElementById('logDetailModal').classList.add('hidden');
+    document.body.style.overflow = '';
+};
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') window.closeLogModal();
+});
 
 // ─── Watchdog sort ───────────────────────────────────────────────────────────
 document.querySelectorAll('.watchdog-sort').forEach(th => {

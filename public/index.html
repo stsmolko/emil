@@ -122,6 +122,11 @@
         html.dark .bg-green-50                  { background:#0f2d1f !important; }
         html.dark .bg-yellow-50                 { background:#2d2200 !important; }
         html.dark #emil-tooltip                 { background:#f1f5f9; color:#0f172a; }
+        html.dark #logDetailModal .bg-white     { background:#1e293b !important; }
+        html.dark #logDetailModal .bg-gray-50   { background:#0f172a !important; }
+        html.dark #logDetailModal .text-gray-900{ color:#f1f5f9 !important; }
+        html.dark #logDetailModal .text-gray-700{ color:#cbd5e1 !important; }
+        html.dark #logDetailModal .text-gray-400{ color:#64748b !important; }
 
         /* ── Mobile nav ── */
         #mobileMenuBtn { display: none; }
@@ -577,6 +582,7 @@
                                 <th class="px-4 py-3 text-left">Email</th>
                                 <th class="px-4 py-3 text-left">Predmet</th>
                                 <th class="px-4 py-3 text-left">Detail</th>
+                                <th class="px-4 py-3"></th>
                             </tr>
                         </thead>
                         <tbody id="logsTable" class="divide-y divide-light-border">
@@ -1237,6 +1243,58 @@
 
     <!-- Firebase SDK -->
     <script type="module" src="js/app.js"></script>
+<!-- Log Detail Modal -->
+<div id="logDetailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeLogModal()"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="gradient-bg px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-white font-semibold text-sm">Detail emailu</span>
+            </div>
+            <button onclick="closeLogModal()" class="text-white/70 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <p class="text-xs text-gray-400 mb-1">Kontakt</p>
+                    <p id="ldContact" class="font-medium text-gray-900">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-1">Email</p>
+                    <p id="ldEmail" class="text-gray-700 break-all">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-1">Čas</p>
+                    <p id="ldTime" class="text-gray-700">—</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-400 mb-1">Udalosť</p>
+                    <p id="ldEvent" class="text-gray-700">—</p>
+                </div>
+            </div>
+            <div>
+                <p class="text-xs text-gray-400 mb-1">Predmet</p>
+                <p id="ldSubject" class="font-medium text-gray-900 bg-gray-50 rounded-lg px-3 py-2">—</p>
+            </div>
+            <div id="ldBodyWrap">
+                <p class="text-xs text-gray-400 mb-1">Telo emailu (náhľad)</p>
+                <p id="ldBody" class="text-gray-700 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap leading-relaxed">—</p>
+            </div>
+            <div id="ldErrorWrap" class="hidden">
+                <p class="text-xs text-gray-400 mb-1">Dôvod / Chyba</p>
+                <p id="ldError" class="text-red-600 bg-red-50 rounded-lg px-3 py-2">—</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="emil-tooltip"></div>
 <script>
 (function() {
