@@ -2558,7 +2558,12 @@ function renderLogs() {
         tbody.innerHTML = data.map(log => {
             const cfg = EVENT_CONFIG[log.event] || { label: log.event, cls: 'bg-gray-100 text-gray-600' };
             const time = log.sentAt ? new Date(log.sentAt).toLocaleString('sk-SK') : '—';
-            const subj = log.subject ? `<span class="truncate max-w-xs block" title="${log.subject}">${log.subject}</span>` : '<span class="text-gray-300">—</span>';
+            const preview = log.bodyPreview
+                ? `<span class="block text-gray-400 text-xs mt-0.5 truncate max-w-xs" title="${log.bodyPreview.replace(/"/g,'&quot;')}">${log.bodyPreview.length > 60 ? log.bodyPreview.slice(0, 60) + '…' : log.bodyPreview}</span>`
+                : '';
+            const subj = log.subject
+                ? `<span class="truncate max-w-xs block" title="${log.subject}">${log.subject}</span>${preview}`
+                : '<span class="text-gray-300">—</span>';
             const detail = log.error ? `<span class="text-red-500 text-xs">${log.error}</span>` : '<span class="text-gray-300">—</span>';
             return `<tr class="hover:bg-gray-50 transition">
                 <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">${time}</td>

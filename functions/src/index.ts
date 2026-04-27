@@ -241,6 +241,7 @@ interface LogData {
   contactName?: string;
   contactEmail?: string;
   subject?: string;
+  bodyPreview?: string;
   event: "sent" | "error" | "blocked" | "bounce" | "delivered" | "spam_complaint" | "handoff";
 }
 
@@ -275,6 +276,7 @@ const updateStats = async (success: boolean, error?: string, logData?: LogData) 
     contactName: logData?.contactName || null,
     contactEmail: logData?.contactEmail || null,
     subject: logData?.subject || null,
+    bodyPreview: logData?.bodyPreview || null,
     sentAt: admin.firestore.FieldValue.serverTimestamp(),
     date: today,
   });
@@ -600,6 +602,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       contactName: contactData.name,
       contactEmail: contactData.email,
       subject,
+      bodyPreview: textBody.slice(0, 120),
     });
     console.log(`Email sent successfully to ${contactData.email}`);
   } catch (error: any) {
