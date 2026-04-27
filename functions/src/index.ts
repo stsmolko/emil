@@ -60,6 +60,11 @@ interface SmtpSettings {
   resendApiKey?: string;
   resendFrom?: string;
   resendReplyTo?: string;
+  imapHost?: string;
+  imapPort?: number;
+  imapUser?: string;
+  imapPass?: string;
+  notifyEmail?: string;
 }
 
 interface SendMailOptions {
@@ -809,15 +814,42 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
     optOut?: string;
   };
 
-  const subject = parseSpintax(
+  const now = new Date();
+  const days = ["nedeľa","pondelok","utorok","streda","štvrtok","piatok","sobota"];
+  const months = ["januára","februára","marca","apríla","mája","júna","júla","augusta","septembra","októbra","novembra","decembra"];
+  const dateStr = `${days[now.getDay()]} ${now.getDate()}. ${months[now.getMonth()]}`;
+  const weekNum = Math.ceil((((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86400000) + new Date(now.getFullYear(), 0, 1).getDay() + 1) / 7);
+  const senderName = (smtp.resendFrom || "").replace(/<[^>]+>/, "").trim() || smtp.resendFrom || "";
+  const senderDomain = (smtp.resendFrom || "").match(/@([^>]+)>/)?.[1] || "";
+
+  const testReplacements: Record<string, string> = {
+    name: "Ján Novák (test)",
+    email: smtp.user,
+    date: dateStr,
+    day: days[now.getDay()],
+    month: months[now.getMonth()],
+    year: String(now.getFullYear()),
+    week: `${weekNum}. týždeň`,
+    sender: senderName,
+    domain: senderDomain,
+  };
+
+  const applyVars = (text: string) => {
+    let result = parseSpintax(text);
+    for (const [key, value] of Object.entries(testReplacements)) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+    }
+    return result;
+  };
+
+  const subject = applyVars(
     emailSettings.subjects?.[Math.floor(Math.random() * (emailSettings.subjects?.length || 1))] || "Test"
   );
-  const greeting = getRandomGreeting(emailSettings.greetings || []);
-  const closing = getRandomClosing(emailSettings.closings || []);
-  const device = getRandomDevice(emailSettings.devices || []);
-  const body = parseSpintax(emailSettings.emailBody || "")
-    .replace(/\{\{name\}\}/g, "Ján Novák (test)");
-  const optOut: string = emailSettings.optOut || "";
+  const greeting = applyVars(getRandomGreeting(emailSettings.greetings || []));
+  const closing = applyVars(getRandomClosing(emailSettings.closings || []));
+  const device = applyVars(getRandomDevice(emailSettings.devices || []));
+  const body = applyVars(emailSettings.emailBody || "");
+  const optOut: string = applyVars(emailSettings.optOut || "");
 
   const parts = [
     ...(greeting.trim() ? [greeting.trim()] : []),
@@ -882,13 +914,14 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
           sentAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       }
+      const bounceReason = event?.data?.bounce?.message || event?.data?.error?.message || event?.data?.reason || "permanent failure";
       await db.collection("email_logs").add({
         success: false,
         event: "bounce",
         contactEmail: emailLower,
         contactName,
         subject,
-        error: "Hard bounce — auto-blacklisted",
+        error: `Hard bounce: ${bounceReason}`,
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
         date: getTodayDateString(),
       });
@@ -978,7 +1011,7 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
         contactEmail: emailLower,
         contactName,
         subject,
-        error: "Spam complaint",
+        error: `Spam complaint (Resend: ${event?.data?.feedback_type || "abuse"})`,
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
         date: getTodayDateString(),
       });
@@ -994,6 +1027,72 @@ export const resendWebhook = functions.https.onRequest(async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTING STATS
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// OPT-OUT HANDLER — príjemca klikne link → blacklist + landing page
+// ─────────────────────────────────────────────────────────────────────────────
+export const handleOptOut = functions.https.onRequest(async (req, res) => {
+  const email = (req.query.email as string || "").trim().toLowerCase();
+  if (email && email.includes("@")) {
+    try {
+      await db.collection("blacklist").doc(normalizeEmail(email)).set({
+        value: normalizeEmail(email),
+        type: "opt_out",
+        reason: "Príjemca klikol na odhlasovací link",
+        addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      const contactSnap = await db.collection("contacts")
+        .where("email", "==", normalizeEmail(email)).limit(1).get();
+      if (!contactSnap.empty) {
+        await contactSnap.docs[0].ref.update({
+          sent: true,
+          error: "Opt-out — odhlásený cez link",
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      console.log(`Opt-out: ${email} blacklisted`);
+    } catch (err) {
+      console.error("Opt-out error:", err);
+    }
+  }
+  res.redirect(301, "https://global-email-script.web.app/optout.html");
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST IMAP CONNECTION
+// ─────────────────────────────────────────────────────────────────────────────
+export const testImapConnection = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
+
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  if (!smtpDoc.exists) throw new functions.https.HttpsError("not-found", "Nastavenia nie sú uložené");
+  const smtp = smtpDoc.data() as SmtpSettings;
+
+  if (!smtp.imapHost || !smtp.imapUser || !smtp.imapPass) {
+    throw new functions.https.HttpsError("invalid-argument", "IMAP nastavenia nie sú vyplnené");
+  }
+
+  const client = new ImapFlow({
+    host: smtp.imapHost,
+    port: smtp.imapPort || 993,
+    secure: true,
+    auth: { user: smtp.imapUser, pass: smtp.imapPass },
+    logger: false,
+    tls: { rejectUnauthorized: false },
+  });
+
+  try {
+    await client.connect();
+    const status = await client.status("INBOX", { messages: true, unseen: true });
+    await client.logout();
+    return {
+      success: true,
+      message: `Pripojenie úspešné — INBOX: ${status.messages} správ, ${status.unseen} neprečítaných`,
+    };
+  } catch (err: any) {
+    return { success: false, message: `Chyba: ${err.message || err}` };
+  }
+});
+
 export const getReportingStats = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
 

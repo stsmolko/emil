@@ -152,7 +152,13 @@ function updateCampaignUI(active) {
 }
 
 startCampaignBtn.addEventListener('click', async () => {
-    if (!confirm('Naozaj chcete spustiť kampaň? Emaily sa začnú automaticky odosielať podľa nastaveného schedulera.')) {
+    if (!spamCheckPassed) {
+        const proceed = confirm(
+            '⚠️ Spam checker nebol spustený alebo email nesplnil kontrolu.\n\n' +
+            'Kampaň môže mať nízku doručiteľnosť. Naozaj chcete pokračovať?'
+        );
+        if (!proceed) return;
+    } else if (!confirm('Naozaj chcete spustiť kampaň? Emaily sa začnú automaticky odosielať podľa nastaveného schedulera.')) {
         return;
     }
     
@@ -1491,6 +1497,36 @@ document.getElementById('testEmailBtn').addEventListener('click', async () => {
         btn.disabled = false;
         btn.innerHTML = '📧 Testovací email';
         setTimeout(() => resultEl.classList.add('hidden'), 6000);
+    }
+});
+
+// ─── Test IMAP ────────────────────────────────────────────────────────────────
+
+document.getElementById('testImapBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('testImapBtn');
+    const resultEl = document.getElementById('imapTestResult');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Testujem...';
+    resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-blue-50 border border-blue-200 text-blue-700';
+    resultEl.textContent = 'Pripájam sa na IMAP server...';
+    resultEl.classList.remove('hidden');
+    try {
+        const testImap = httpsCallable(functions, 'testImapConnection');
+        const result = await testImap();
+        if (result.data.success) {
+            resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-700';
+            resultEl.textContent = `✅ ${result.data.message}`;
+        } else {
+            resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700';
+            resultEl.textContent = `❌ ${result.data.message}`;
+        }
+    } catch (err) {
+        resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-700';
+        resultEl.textContent = `❌ Chyba: ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
     }
 });
 

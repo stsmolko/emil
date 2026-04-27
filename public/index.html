@@ -653,6 +653,14 @@
                                    placeholder="••••••••">
                         </div>
                         <p class="text-xs text-gray-400">Kontrola každých 15 minút. IMAP údaje nájdeš v nastaveniach svojho emailového poskytovateľa. Zvyčajne <em>mail.vasadomena.sk</em>, port 993 (SSL).</p>
+                        <button type="button" id="testImapBtn"
+                                class="mt-2 flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Test IMAP pripojenia
+                        </button>
+                        <div id="imapTestResult" class="hidden mt-2 p-3 rounded-lg text-sm"></div>
                     </div>
                 </div>
 
