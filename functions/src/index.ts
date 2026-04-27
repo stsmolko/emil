@@ -113,6 +113,8 @@ interface EmailStats {
 }
 
 const DAILY_LIMIT = 10;
+/** Max. znakov finálneho textu emailu uložených v logu (pre náhľad v UI). */
+const LOG_BODY_PREVIEW_MAX = 6000;
 const WORKING_HOURS_START = 7;
 const WORKING_HOURS_END = 21;
 const MIN_EMAIL_INTERVAL_MINUTES = 30; // Minimum 30 minutes between emails
@@ -602,7 +604,7 @@ export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZ
       contactName: contactData.name,
       contactEmail: contactData.email,
       subject,
-      bodyPreview: textBody.slice(0, 120),
+      bodyPreview: textBody.slice(0, LOG_BODY_PREVIEW_MAX),
     });
     console.log(`Email sent successfully to ${contactData.email}`);
   } catch (error: any) {
@@ -716,6 +718,18 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
   ).length;
   const remainingContacts = totalContacts - sentContacts;
 
+  let automationQueue = 0;
+  let handoffWaiting = 0;
+  contactsSnapshot.docs.forEach((doc) => {
+    const d = doc.data();
+    if (d.sent === true) return;
+    if (d.handoff === true) handoffWaiting += 1;
+    else automationQueue += 1;
+  });
+
+  const campaignDocStats = await db.collection("settings").doc("campaign").get();
+  const campaignActive = campaignDocStats.exists && campaignDocStats.data()?.active === true;
+
   const logsSnapshot = await db
     .collection("email_logs")
     .where("success", "==", false)
@@ -735,7 +749,40 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     errorsToday,
     totalContacts,
     dailyLimit: configuredLimit,
+    automationQueue,
+    handoffWaiting,
+    campaignActive,
   };
+});
+
+/** Rýchla kontrola Resend API kľúča bez odoslania emailu. */
+export const smokeTestResend = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "Must be logged in");
+  }
+  const smtpDoc = await db.collection("settings").doc("smtp").get();
+  if (!smtpDoc.exists) {
+    throw new functions.https.HttpsError("not-found", "Nastavenia nie sú uložené");
+  }
+  const smtp = smtpDoc.data() as SmtpSettings;
+  if (smtp.provider !== "resend" || !smtp.resendApiKey) {
+    return { success: false, message: "Smoke test je len pre Resend — nastav API kľúč a provider Resend." };
+  }
+  try {
+    const r = await fetch("https://api.resend.com/domains", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${smtp.resendApiKey}` },
+    });
+    if (r.ok) {
+      const j = await r.json() as { data?: unknown[] };
+      const n = Array.isArray(j?.data) ? j.data.length : 0;
+      return { success: true, message: `Resend API OK — načítaných ${n} domén.` };
+    }
+    const errText = await r.text();
+    return { success: false, message: `Resend odpoveď ${r.status}: ${errText.slice(0, 200)}` };
+  } catch (e: any) {
+    return { success: false, message: e?.message || String(e) };
+  }
 });
 
 // Toggle campaign on/off

@@ -27,6 +27,8 @@ import {
     httpsCallable 
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
 
+// Verejná Firebase konfigurácia (apiKey nie je tajomstvo — chráni ju Firebase Security Rules).
+// Resend API kľúč ani heslá sem nepatria; tie sú len vo Firestore cez prihláseného používateľa.
 const firebaseConfig = {
     apiKey: "AIzaSyBR74UHgCmayg_0WKmoCD_lqACU2GRu3Ak",
     authDomain: "global-email-script.firebaseapp.com",
@@ -171,6 +173,7 @@ startCampaignBtn.addEventListener('click', async () => {
         const data = result.data;
         
         updateCampaignUI(true);
+        loadDashboard();
 
         // Reset end-notification flag so it fires again for the new campaign run
         try {
@@ -219,6 +222,7 @@ stopCampaignBtn.addEventListener('click', async () => {
         const data = result.data;
         
         updateCampaignUI(false);
+        loadDashboard();
         
         campaignMessage.className = 'mt-4 p-3 rounded-lg text-sm bg-yellow-500/90 text-white';
         campaignMessage.innerHTML = `
@@ -493,6 +497,42 @@ function renderWatchdog() {
     });
 }
 
+function updateDashboardQueueBanner(stats) {
+    const el = document.getElementById('dashboardQueueBanner');
+    if (!el) return;
+    const total = stats.totalContacts || 0;
+    const q = stats.automationQueue ?? stats.remainingContacts ?? 0;
+    const hand = stats.handoffWaiting || 0;
+    const active = stats.campaignActive === true;
+
+    el.classList.remove('hidden', 'bg-amber-50', 'border-amber-200', 'text-amber-900', 'bg-sky-50', 'border-sky-200', 'text-sky-900', 'bg-red-50', 'border-red-200', 'text-red-800');
+
+    if (total === 0) {
+        el.classList.add('bg-sky-50', 'border', 'border-sky-200', 'text-sky-900');
+        el.innerHTML = '<strong>Žiadne kontakty.</strong> Importuj kontakty (CSV) pred spustením kampane.';
+        el.classList.remove('hidden');
+        return;
+    }
+    if (active && q === 0) {
+        el.classList.add('bg-amber-50', 'border', 'border-amber-200', 'text-amber-900');
+        if (hand > 0) {
+            el.innerHTML = `<strong>Kampaň beží, ale scheduler nemá komu automaticky odoslať.</strong> Všetci zostávajúci kontakti (${hand}) sú v režime „Riešim osobne“ alebo už boli spracovaní.`;
+        } else {
+            el.innerHTML = '<strong>Kampaň beží, ale nie sú žiadni príjemcovia v rade.</strong> Všetkým už bol odoslaný email — pridaj nových kontaktov alebo uprav stav v databáze.';
+        }
+        el.classList.remove('hidden');
+        return;
+    }
+    if (!active && q > 0) {
+        el.classList.add('bg-sky-50', 'border', 'border-sky-200', 'text-sky-900');
+        el.innerHTML = `<strong>${q} kontaktov čaká na odoslanie.</strong> Spusti kampaň, keď budeš pripravený.`;
+        el.classList.remove('hidden');
+        return;
+    }
+    el.classList.add('hidden');
+    el.textContent = '';
+}
+
 async function loadDashboard() {
     try {
         const getDashboardStats = httpsCallable(functions, 'getDashboardStats');
@@ -504,6 +544,8 @@ async function loadDashboard() {
         statTotal.textContent = stats.totalContacts;
         if (statSentAll) statSentAll.textContent = (stats.totalContacts || 0) - (stats.remainingContacts || 0);
         dailyLimit.textContent = stats.dailyLimit;
+
+        updateDashboardQueueBanner(stats);
         
         // Load campaign status
         await loadCampaignStatus();
@@ -1501,6 +1543,34 @@ document.getElementById('testEmailBtn').addEventListener('click', async () => {
 });
 
 // ─── Test IMAP ────────────────────────────────────────────────────────────────
+
+document.getElementById('smokeTestResendBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('smokeTestResendBtn');
+    const resultEl = document.getElementById('smokeTestResendResult');
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-pulse">Kontrolujem API…</span>';
+    resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-blue-50 border border-blue-200 text-blue-800';
+    resultEl.textContent = 'Volám Resend API (GET /domains)…';
+    resultEl.classList.remove('hidden');
+    try {
+        const smoke = httpsCallable(functions, 'smokeTestResend');
+        const result = await smoke();
+        if (result.data.success) {
+            resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-green-50 border border-green-200 text-green-800';
+            resultEl.textContent = `✅ ${result.data.message}`;
+        } else {
+            resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-amber-50 border border-amber-200 text-amber-900';
+            resultEl.textContent = `⚠️ ${result.data.message}`;
+        }
+    } catch (err) {
+        resultEl.className = 'mt-2 p-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800';
+        resultEl.textContent = `❌ ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+});
 
 document.getElementById('testImapBtn')?.addEventListener('click', async () => {
     const btn = document.getElementById('testImapBtn');
@@ -2559,7 +2629,7 @@ function renderLogs() {
             const cfg = EVENT_CONFIG[log.event] || { label: log.event, cls: 'bg-gray-100 text-gray-600' };
             const time = log.sentAt ? new Date(log.sentAt).toLocaleString('sk-SK') : '—';
             const preview = log.bodyPreview
-                ? `<span class="block text-gray-400 text-xs mt-0.5 truncate max-w-xs" title="${log.bodyPreview.replace(/"/g,'&quot;')}">${log.bodyPreview.length > 60 ? log.bodyPreview.slice(0, 60) + '…' : log.bodyPreview}</span>`
+                ? `<span class="block text-gray-400 text-xs mt-0.5 truncate max-w-xs" title="${log.bodyPreview.replace(/"/g,'&quot;')}">${log.bodyPreview.length > 140 ? log.bodyPreview.slice(0, 140) + '…' : log.bodyPreview}</span>`
                 : '';
             const subj = log.subject
                 ? `<span class="truncate max-w-xs block" title="${log.subject}">${log.subject}</span>${preview}`
