@@ -120,7 +120,7 @@ const WORKING_HOURS_END = 21;
 const MIN_EMAIL_INTERVAL_MINUTES = 30; // Minimum 30 minutes between emails
 
 const getRandomDelay = (): number => {
-  return Math.floor(Math.random() * 120000) + 60000;
+  return Math.floor(Math.random() * 20000) + 5000; // 5–25 sekúnd
 };
 
 /** Hodina (0–23) a deň v týždni (0=Ne … 6=So) v Europe/Bratislava */
@@ -306,7 +306,7 @@ const updateStats = async (success: boolean, error?: string, logData?: LogData) 
   });
 };
 
-export const mailScheduler = functions.pubsub.schedule("every 30 minutes").timeZone("Europe/Bratislava").onRun(async () => {
+export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "256MB" }).pubsub.schedule("every 30 minutes").timeZone("Europe/Bratislava").onRun(async () => {
   console.log("Smart Scheduler triggered");
 
   // Always record health ping so dashboard can show "last run" time
