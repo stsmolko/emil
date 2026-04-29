@@ -1410,7 +1410,7 @@ document.getElementById('nastaveniaForm').addEventListener('submit', async (e) =
     e.preventDefault();
     const resendApiKey = document.getElementById('resendApiKey').value.trim();
     const user = document.getElementById('resendNotifyEmail').value.trim();
-    const resendReplyTo = document.getElementById('resendReplyTo').value.trim();
+    const resendReplyTo = document.getElementById('resendReplyTo')?.value?.trim() || '';
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
     const imapHost = document.getElementById('imapHost').value.trim();
     const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
@@ -1442,7 +1442,7 @@ smtpForm.addEventListener('submit', async (e) => {
     const resendFromEmail = document.getElementById('resendFromEmail').value.trim();
     const resendFrom = resendFromName ? `${resendFromName} <${resendFromEmail}>` : resendFromEmail;
     const user = document.getElementById('resendNotifyEmail').value.trim();
-    const resendReplyTo = document.getElementById('resendReplyTo').value.trim();
+    const resendReplyTo = document.getElementById('resendReplyTo')?.value?.trim() || '';
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
     const imapHost = document.getElementById('imapHost').value.trim();
     const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
