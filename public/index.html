@@ -632,6 +632,32 @@
         <!-- Nastavenia Section -->
         <!-- Logs Section -->
         <div id="logsSection" class="hidden max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+            <!-- Výkon podľa dňa -->
+            <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden mb-6">
+                <div class="px-6 py-4 border-b border-light-border">
+                    <h2 class="text-base font-bold text-gray-900">📅 Doručiteľnosť podľa dňa</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Vypočítané z posledných 100 logov — % úspešne odoslaných (bez chýb a bounce)</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Deň</th>
+                                <th class="px-4 py-3 text-right">Odoslané</th>
+                                <th class="px-4 py-3 text-right">Chyby</th>
+                                <th class="px-4 py-3 text-right">Bounce</th>
+                                <th class="px-4 py-3 text-right">Doručiteľnosť</th>
+                                <th class="px-4 py-3 text-left">Graf</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dayStatsTable" class="divide-y divide-light-border">
+                            <tr><td colspan="6" class="px-6 py-4 text-center text-gray-400 text-xs">Načítavam logy...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="bg-white rounded-2xl border border-light-border shadow-sm overflow-hidden">
                 <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-light-border">
                     <div>

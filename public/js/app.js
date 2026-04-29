@@ -2656,6 +2656,7 @@ async function loadLogs() {
         const result = await getEmailLogs({ limit: 100 });
         allLogsCache = result.data || [];
         renderLogs();
+        renderDayStats();
     } catch (err) {
         console.error('Logs error:', err);
         if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-red-500">Chyba: ${err.message}</td></tr>`;
@@ -2720,6 +2721,48 @@ function renderLogs() {
             ? 'log-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-900 text-white'
             : 'log-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200';
     });
+}
+
+function renderDayStats() {
+    const tbody = document.getElementById('dayStatsTable');
+    if (!tbody) return;
+    const days = ['Nedeľa','Pondelok','Utorok','Streda','Štvrtok','Piatok','Sobota'];
+    const order = [1,2,3,4,5,6,0]; // Po–Ne
+    const stats = {};
+    for (let i = 0; i < 7; i++) stats[i] = { sent: 0, error: 0, bounce: 0 };
+
+    allLogsCache.forEach(log => {
+        if (!log.sentAt) return;
+        const day = new Date(log.sentAt).getDay();
+        if (log.event === 'sent' || log.event === 'delivered') stats[day].sent++;
+        else if (log.event === 'error' || log.event === 'blocked') stats[day].error++;
+        else if (log.event === 'bounce' || log.event === 'spam_complaint') stats[day].bounce++;
+    });
+
+    const rows = order.map(d => {
+        const s = stats[d];
+        const total = s.sent + s.error + s.bounce;
+        if (total === 0) return null;
+        const rate = Math.round((s.sent / total) * 100);
+        const color = rate >= 90 ? 'bg-green-500' : rate >= 70 ? 'bg-yellow-400' : 'bg-red-400';
+        const textColor = rate >= 90 ? 'text-green-700' : rate >= 70 ? 'text-yellow-700' : 'text-red-600';
+        return `<tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 font-medium text-gray-800">${days[d]}</td>
+            <td class="px-4 py-3 text-right text-gray-600">${s.sent}</td>
+            <td class="px-4 py-3 text-right text-red-500">${s.error}</td>
+            <td class="px-4 py-3 text-right text-orange-500">${s.bounce}</td>
+            <td class="px-4 py-3 text-right font-bold ${textColor}">${rate}%</td>
+            <td class="px-4 py-3">
+                <div class="w-24 bg-gray-100 rounded-full h-2">
+                    <div class="${color} h-2 rounded-full" style="width:${rate}%"></div>
+                </div>
+            </td>
+        </tr>`;
+    }).filter(Boolean);
+
+    tbody.innerHTML = rows.length
+        ? rows.join('')
+        : `<tr><td colspan="6" class="px-6 py-4 text-center text-gray-400 text-xs">Zatiaľ žiadne dáta.</td></tr>`;
 }
 
 window.deleteLog = async function(logId, logIdx) {
