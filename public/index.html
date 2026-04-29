@@ -765,9 +765,13 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Heslo</label>
-                            <input type="password" id="imapPass"
-                                   class="w-full px-4 py-3 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
-                                   placeholder="••••••••">
+                            <div class="relative">
+                                <input type="password" id="imapPass"
+                                       class="w-full px-4 py-3 pr-12 bg-white border border-light-border rounded-lg focus:ring-2 focus:ring-primary text-gray-900"
+                                       placeholder="••••••••">
+                                <button type="button" onclick="const f=document.getElementById('imapPass');f.type=f.type==='password'?'text':'password';this.textContent=f.type==='password'?'👁':'🙈'"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-base">👁</button>
+                            </div>
                         </div>
                         <p class="text-xs text-gray-400">Kontrola každých 15 minút. IMAP údaje nájdeš v nastaveniach svojho emailového poskytovateľa. Zvyčajne <em>mail.vasadomena.sk</em>, port 993 (SSL).</p>
                         <button type="button" id="testImapBtn"
