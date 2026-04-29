@@ -1545,7 +1545,12 @@ smtpForm.addEventListener('submit', async (e) => {
             optOut
         });
         
-        showToast(`✅ Nastavenia uložené — ${subjects.length} predmetov, ${greetings.length} oslovení`);
+        const successEl = document.getElementById('settingsSuccess');
+        if (successEl) {
+            successEl.textContent = `✅ Nastavenia uložené — ${subjects.length} predmetov, ${greetings.length} oslovení`;
+            successEl.classList.remove('hidden');
+            setTimeout(() => successEl.classList.add('hidden'), 4000);
+        }
     } catch (error) {
         console.error('Error saving settings:', error);
         alert('Chyba pri ukladaní nastavení');
