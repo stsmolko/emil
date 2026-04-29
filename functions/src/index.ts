@@ -116,7 +116,6 @@ const DAILY_LIMIT = 10;
 /** Max. znakov finálneho textu emailu uložených v logu (pre náhľad v UI). */
 const LOG_BODY_PREVIEW_MAX = 6000;
 const WORKING_HOURS_START = 7;
-const WORKING_HOURS_END = 21;
 const MIN_EMAIL_INTERVAL_MINUTES = 30; // Minimum 30 minutes between emails
 
 const getRandomDelay = (): number => {
@@ -156,7 +155,7 @@ const isWorkingHours = (): boolean => {
   if (hour === 12) return false;
 
   if (day === 1) {
-    return hour >= 13 && hour < WORKING_HOURS_END;
+    return hour >= 13 && hour < 16;
   }
   if (day === 5) {
     return hour >= WORKING_HOURS_START && hour < 13;
