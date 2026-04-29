@@ -164,7 +164,7 @@ const isWorkingHours = (): boolean => {
   if (day === 6) {
     return hour >= WORKING_HOURS_START && hour < 12;
   }
-  return hour >= WORKING_HOURS_START && hour < WORKING_HOURS_END;
+  return hour >= WORKING_HOURS_START && hour < 16; // Ut–Št do 16:00
 };
 
 const getTodayDateString = (): string => {
