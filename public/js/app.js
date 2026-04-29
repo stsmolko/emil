@@ -81,6 +81,18 @@ const refreshContacts = document.getElementById('refreshContacts');
 const smtpForm = document.getElementById('smtpForm');
 const settingsSuccess = document.getElementById('settingsSuccess');
 
+let toastTimer = null;
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('emilToast');
+    if (!toast) return;
+    const isSuccess = type === 'success';
+    toast.className = `px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${isSuccess ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
 let currentUser = null;
 
 onAuthStateChanged(auth, (user) => {
@@ -1415,9 +1427,7 @@ document.getElementById('nastaveniaForm').addEventListener('submit', async (e) =
         if (imapHost && imapUser && imapPass) {
             await setDoc(doc(db, 'settings', 'imap'), { host: imapHost, port: imapPort, user: imapUser, pass: imapPass });
         }
-        const ok = document.getElementById('nastaveniaSuccess');
-        ok.classList.remove('hidden');
-        setTimeout(() => ok.classList.add('hidden'), 3000);
+        showToast('✅ Nastavenia uložené');
     } catch (err) {
         console.error('nastaveniaForm save error:', err);
         alert('Chyba pri ukladaní nastavení: ' + err.message);
@@ -1535,11 +1545,7 @@ smtpForm.addEventListener('submit', async (e) => {
             optOut
         });
         
-        settingsSuccess.innerHTML = `✅ Nastavenia úspešne uložené!<br><small>Predmetov: ${subjects.length} | Oslovení: ${greetings.length} | Ukončení: ${closings.length} | Zariadení: ${devices.length}</small>`;
-        settingsSuccess.classList.remove('hidden');
-        setTimeout(() => {
-            settingsSuccess.classList.add('hidden');
-        }, 3000);
+        showToast(`✅ Nastavenia uložené — ${subjects.length} predmetov, ${greetings.length} oslovení`);
     } catch (error) {
         console.error('Error saving settings:', error);
         alert('Chyba pri ukladaní nastavení');

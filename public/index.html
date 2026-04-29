@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="sk">
 <head>
+    <style>
+        #emilToast {
+            position: fixed;
+            top: 1.25rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(-120%);
+            transition: transform 0.3s ease;
+            z-index: 9999;
+            white-space: nowrap;
+        }
+        #emilToast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EMIL - Email Liaison</title>
@@ -164,6 +178,8 @@
     </style>
 </head>
 <body class="bg-light-bg text-gray-900 min-h-screen">
+
+<div id="emilToast" class="px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2"></div>
     
     <!-- Login Screen -->
     <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">
