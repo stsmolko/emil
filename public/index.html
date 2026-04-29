@@ -43,8 +43,13 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         
+        html {
+            background: #f3f4f6;
+            overscroll-behavior-y: none;
+        }
         body {
             font-family: 'Inter', sans-serif;
+            background: #f3f4f6;
         }
         
         .gradient-bg {
@@ -102,7 +107,7 @@
         html:not(.dark) .text-gray-400         { color:#111827 !important; }
 
         /* ── Dark mode ── */
-        html.dark body                          { background:#0f172a; color:#f1f5f9; }
+        html.dark, html.dark body               { background:#0f172a; color:#f1f5f9; }
         html.dark .bg-light-bg                  { background:#0f172a !important; }
         html.dark .bg-light-card,
         html.dark .bg-white                     { background:#1e293b !important; }
@@ -179,7 +184,7 @@
 </head>
 <body class="bg-light-bg text-gray-900 min-h-screen">
 
-<div id="emilToast" class="px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2"></div>
+<div id="emilToast" class="hidden px-5 py-3 rounded-xl shadow-lg text-sm font-medium items-center gap-2"></div>
     
     <!-- Login Screen -->
     <div id="loginScreen" class="min-h-screen flex items-center justify-center p-4">

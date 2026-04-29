@@ -88,9 +88,8 @@ function showToast(message, type = 'success') {
     const isSuccess = type === 'success';
     toast.className = `px-5 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 ${isSuccess ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`;
     toast.textContent = message;
-    toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+    toastTimer = setTimeout(() => toast.classList.replace('flex', 'hidden'), 3000);
 }
 
 let currentUser = null;
