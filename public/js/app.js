@@ -1557,7 +1557,7 @@ smtpForm.addEventListener('submit', async (e) => {
         }
         const successEl = document.getElementById('settingsSuccess');
         if (successEl) {
-            successEl.textContent = `✅ Nastavenia uložené — ${subjects.length} predmetov, ${greetings.length} oslovení`;
+            successEl.textContent = '✅ Nastavenia uložené';
             successEl.classList.remove('hidden');
             setTimeout(() => successEl.classList.add('hidden'), 4000);
         }
