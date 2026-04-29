@@ -1545,6 +1545,16 @@ smtpForm.addEventListener('submit', async (e) => {
             optOut
         });
         
+        const saveBtn = document.getElementById('saveSettingsBtn');
+        if (saveBtn) {
+            const original = saveBtn.textContent;
+            saveBtn.textContent = '✅ Uložené!';
+            saveBtn.style.background = '#16a34a';
+            setTimeout(() => {
+                saveBtn.textContent = original;
+                saveBtn.style.background = '';
+            }, 3000);
+        }
         const successEl = document.getElementById('settingsSuccess');
         if (successEl) {
             successEl.textContent = `✅ Nastavenia uložené — ${subjects.length} predmetov, ${greetings.length} oslovení`;
