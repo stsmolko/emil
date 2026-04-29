@@ -72,6 +72,7 @@ interface SendMailOptions {
   to: string;
   subject: string;
   text: string;
+  html?: string;
   replyTo?: string;
 }
 
@@ -85,6 +86,7 @@ const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<s
       to: options.to,
       subject: options.subject,
       text: options.text,
+      ...(options.html ? { html: options.html } : {}),
       ...(options.replyTo ? { replyTo: options.replyTo } : {}),
     });
     if (error) throw new Error(`Resend error: ${error.message}`);
@@ -101,6 +103,7 @@ const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<s
       to: options.to,
       subject: options.subject,
       text: options.text,
+      ...(options.html ? { html: options.html } : {}),
     });
     return null;
   }
@@ -425,25 +428,144 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
       if (!smtpDoc.exists) return;
       const smtp = smtpDoc.data() as SmtpSettings;
 
-      const handoffNote = handoffCount > 0
-        ? `\n\nℹ️ ${handoffCount} kontakt${handoffCount > 1 ? "y sú" : " je"} označen${handoffCount > 1 ? "é" : "ý"} ako „Riešim osobne" — emaily na ne neboli odoslané automaticky.`
-        : "";
+      // Gather extra stats for the notification
+      const today = getTodayDateString();
+      const logsSnap = await db.collection("email_logs").get();
+      const allLogs = logsSnap.docs.map(d => d.data());
+      const errorLogs = allLogs.filter(l => l.success === false);
+      const errorsTotal = errorLogs.length;
+      const blacklistSnap = await db.collection("blacklist").get();
+      const blacklistCount = blacklistSnap.size;
+      const successRate = totalAll > 0 ? Math.round((sentCount / totalAll) * 100) : 0;
+      const todayLogsSuccess = allLogs.filter(l => l.success === true && l.date === today).length;
+
+      const finishedAt = new Date().toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" });
+      const startedAt = campaignData.startedAt
+        ? new Date(campaignData.startedAt.toMillis()).toLocaleString("sk-SK", { timeZone: "Europe/Bratislava" })
+        : "—";
 
       const notifFrom = smtp.resendFrom || smtp.from || smtp.user;
+
+      const htmlBody = `<!DOCTYPE html>
+<html lang="sk">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:32px 40px;text-align:center;">
+            <div style="font-size:40px;margin-bottom:8px;">✅</div>
+            <h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">Kampaň dokončená</h1>
+            <p style="color:#c7d2fe;margin:8px 0 0;font-size:14px;">EMIL – Efficient Mail &amp; Intelligent Liaison</p>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px 40px;">
+            <p style="color:#374151;font-size:16px;margin:0 0 24px;">Dobrá správa! EMIL úspešne dokončil kampaň a všetky emaily boli odoslané.</p>
+
+            <!-- Stats grid -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <tr>
+                <td width="50%" style="padding:0 8px 16px 0;">
+                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:20px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#16a34a;">${sentCount}</div>
+                    <div style="font-size:13px;color:#4b5563;margin-top:4px;">📨 Odoslaných emailov</div>
+                  </div>
+                </td>
+                <td width="50%" style="padding:0 0 16px 8px;">
+                  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:20px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#2563eb;">${totalAll}</div>
+                    <div style="font-size:13px;color:#4b5563;margin-top:4px;">👥 Celkom kontaktov</div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td width="50%" style="padding:0 8px 0 0;">
+                  <div style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:20px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#ca8a04;">${successRate}%</div>
+                    <div style="font-size:13px;color:#4b5563;margin-top:4px;">📈 Úspešnosť kampane</div>
+                  </div>
+                </td>
+                <td width="50%" style="padding:0 0 0 8px;">
+                  <div style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:10px;padding:20px;text-align:center;">
+                    <div style="font-size:32px;font-weight:700;color:#9333ea;">${blacklistCount}</div>
+                    <div style="font-size:13px;color:#4b5563;margin-top:4px;">🚫 Pridaných na blacklist</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Detail table -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:24px;">
+              <tr style="background:#f9fafb;">
+                <td colspan="2" style="padding:12px 16px;font-size:13px;font-weight:600;color:#374151;border-bottom:1px solid #e5e7eb;">📋 Podrobnosti</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Preskočených (Riešim osobne)</td>
+                <td style="padding:10px 16px;font-size:13px;color:#374151;font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6;">${handoffCount}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Chyby pri odosielaní (celkovo)</td>
+                <td style="padding:10px 16px;font-size:13px;color:${errorsTotal > 0 ? '#dc2626' : '#16a34a'};font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6;">${errorsTotal}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Odoslaných dnes</td>
+                <td style="padding:10px 16px;font-size:13px;color:#374151;font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6;">${todayLogsSuccess}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;">Kampaň spustená</td>
+                <td style="padding:10px 16px;font-size:13px;color:#374151;font-weight:600;text-align:right;border-bottom:1px solid #f3f4f6;">${startedAt}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 16px;font-size:13px;color:#6b7280;">Kampaň dokončená</td>
+                <td style="padding:10px 16px;font-size:13px;color:#374151;font-weight:600;text-align:right;">${finishedAt}</td>
+              </tr>
+            </table>
+
+            ${handoffCount > 0 ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 16px;font-size:13px;color:#92400e;margin-bottom:24px;">
+              ℹ️ <strong>${handoffCount} kontakt${handoffCount > 1 ? "y sú" : " je"}</strong> označen${handoffCount > 1 ? "é" : "ý"} ako „Riešim osobne" — emaily na ne neboli odoslané automaticky.
+            </div>` : ""}
+
+            <p style="color:#6b7280;font-size:14px;margin:0;">Ak chceš spustiť novú kampaň, importuj nové kontakty a spusti kampaň v EMIL dashboarde.</p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 40px;text-align:center;">
+            <p style="color:#9ca3af;font-size:12px;margin:0;">Táto správa bola vygenerovaná automaticky systémom <strong>EMIL</strong></p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+      const plainText =
+        `Dobrá správa!\n\n` +
+        `EMIL úspešne dokončil kampaň.\n\n` +
+        `📊 Štatistiky:\n` +
+        `• Celkom kontaktov: ${totalAll}\n` +
+        `• Odoslaných emailov: ${sentCount}\n` +
+        `• Úspešnosť: ${successRate}%\n` +
+        `• Preskočených (handoff): ${handoffCount}\n` +
+        `• Chyby celkovo: ${errorsTotal}\n` +
+        `• Blacklist prídavky: ${blacklistCount}\n` +
+        `• Odoslaných dnes: ${todayLogsSuccess}\n` +
+        `• Spustená: ${startedAt}\n` +
+        `• Dokončená: ${finishedAt}\n` +
+        `\nAk chceš spustiť novú kampaň, importuj nové kontakty a spusti kampaň v EMIL dashboarde.\n\n` +
+        `— EMIL`;
+
       await sendMail(smtp, {
         from: notifFrom,
         to: smtp.user,
         subject: "✅ EMIL: Kampaň dokončená",
-        text:
-          `Dobrá správa!\n\n` +
-          `EMIL úspešne dokončil kampaň.\n\n` +
-          `📊 Štatistiky:\n` +
-          `• Celkom kontaktov: ${totalAll}\n` +
-          `• Odoslaných emailov: ${sentCount}\n` +
-          `• Preskočených (handoff): ${handoffCount}\n` +
-          handoffNote +
-          `\n\nAk chceš spustiť novú kampaň, importuj nové kontakty a spusti kampaň v EMIL dashboarde.\n\n` +
-          `— EMIL`,
+        text: plainText,
+        html: htmlBody,
       });
 
       console.log(`End notification sent to ${smtp.user}`);
