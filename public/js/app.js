@@ -575,6 +575,29 @@ async function loadDashboard() {
         if (statSentAll) statSentAll.textContent = (stats.totalContacts || 0) - (stats.remainingContacts || 0);
         dailyLimit.textContent = stats.dailyLimit;
 
+        // Posledná kampaň — zobraz keď nie je aktívna kampaň a kontakty sú 0
+        const lc = stats.lastCampaign;
+        const lastCampaignEl = document.getElementById('lastCampaignBanner');
+        if (lastCampaignEl) {
+            if (!stats.campaignActive && stats.totalContacts === 0 && lc) {
+                const finAt = lc.finishedAt?._seconds
+                    ? new Date(lc.finishedAt._seconds * 1000).toLocaleDateString('sk-SK')
+                    : '—';
+                lastCampaignEl.innerHTML = `
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-800 flex flex-wrap gap-x-6 gap-y-1 items-center">
+                        <span class="font-semibold">📋 Posledná kampaň (${finAt}):</span>
+                        <span>👥 Celkom: <strong>${lc.totalContacts}</strong></span>
+                        <span>📨 Odoslaných: <strong>${lc.sentCount}</strong></span>
+                        <span>📈 Úspešnosť: <strong>${lc.successRate}%</strong></span>
+                        <span>❌ Chyby: <strong>${lc.errorsTotal}</strong></span>
+                        <span>🚫 Blacklist: <strong>${lc.blacklistCount}</strong></span>
+                    </div>`;
+                lastCampaignEl.classList.remove('hidden');
+            } else {
+                lastCampaignEl.classList.add('hidden');
+            }
+        }
+
         updateDashboardQueueBanner(stats);
         
         // Stav kampane: onSnapshot(settings/campaign) v subscribeCampaignStatus()
@@ -2168,16 +2191,9 @@ function updateSaveButton() {
     }
 }
 
-document.getElementById('spamCheckBtn').addEventListener('click', () => {
+function runSpamCheck() {
     const btn = document.getElementById('spamCheckBtn');
     const resultsEl = document.getElementById('spamResults');
-
-    if (!resultsEl.classList.contains('hidden')) {
-        resultsEl.classList.add('hidden');
-        btn.textContent = '🔍 Skontrolovať';
-        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-    }
 
     const fromName = document.getElementById('resendFromName')?.value.trim() || '';
     const subjects = splitEntries(document.getElementById('emailSubjects').value);
@@ -2227,6 +2243,22 @@ document.getElementById('spamCheckBtn').addEventListener('click', () => {
 
     spamCheckPassed = fromResult.score > 0 && subjectResult.score > 0 && bodyResult.score > 0 && closingResult.score > 0 && optOutResult.score > 0 && deviceResult.score > 0;
     updateSaveButton();
+}
+
+document.getElementById('spamCheckBtn').addEventListener('click', () => {
+    const resultsEl = document.getElementById('spamResults');
+    const btn = document.getElementById('spamCheckBtn');
+    if (!resultsEl.classList.contains('hidden')) {
+        resultsEl.classList.add('hidden');
+        btn.textContent = '🔍 Skontrolovať';
+        btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+    runSpamCheck();
+});
+
+document.getElementById('spamReCheckBtn')?.addEventListener('click', () => {
+    runSpamCheck();
 });
 
 
@@ -2927,6 +2959,10 @@ window.openLogModal = function(idx) {
 
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    // Reset scroll na začiatok
+    const scrollable = modal.querySelector('.overflow-y-auto');
+    if (scrollable) scrollable.scrollTop = 0;
+    if (bodyEl) bodyEl.scrollTop = 0;
 };
 
 window.closeLogModal = function() {

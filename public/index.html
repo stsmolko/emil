@@ -400,6 +400,9 @@
                 </div>
             </div>
 
+            <!-- Posledná kampaň banner -->
+            <div id="lastCampaignBanner" class="hidden mb-4"></div>
+
             <!-- Kontaktový prehľad -->
             <div class="bg-light-card rounded-xl border border-light-border shadow-sm px-4 sm:px-6 py-5 mb-6 space-y-5">
                 <!-- Databáza -->
@@ -873,6 +876,10 @@
                                 </div>
                             </div>
                             <div id="spamResults" class="hidden space-y-4">
+                                <button type="button" id="spamReCheckBtn"
+                                        class="w-full px-4 py-2 border-2 border-indigo-300 text-indigo-600 text-sm font-semibold rounded-lg hover:bg-indigo-50 transition">
+                                    🔄 Skontrolovať znova
+                                </button>
                                 <div id="spamFromResult"></div>
                                 <div id="spamSubjectResult"></div>
                                 <div id="spamBodyResult"></div>
@@ -1435,8 +1442,8 @@
 <!-- Log Detail Modal -->
 <div id="logDetailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeLogModal()"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div class="gradient-bg px-6 py-4 flex items-center justify-between">
+    <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div class="gradient-bg px-6 py-4 flex items-center justify-between flex-shrink-0">
             <div class="flex items-center gap-2">
                 <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
@@ -1449,7 +1456,7 @@
                 </svg>
             </button>
         </div>
-        <div class="p-6 space-y-4 text-sm">
+        <div class="p-6 space-y-4 text-sm overflow-y-auto flex-1">
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <p class="text-xs text-gray-400 mb-1">Kontakt</p>
@@ -1474,7 +1481,7 @@
             </div>
             <div id="ldBodyWrap">
                 <p class="text-xs text-gray-400 mb-1">Telo emailu (náhľad)</p>
-                <p id="ldBody" class="text-gray-700 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap leading-relaxed">—</p>
+                <p id="ldBody" class="text-gray-700 bg-gray-50 rounded-lg px-3 py-2 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">—</p>
             </div>
             <div id="ldErrorWrap" class="hidden">
                 <p class="text-xs text-gray-400 mb-1">Dôvod / Chyba</p>

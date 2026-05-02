@@ -421,6 +421,21 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
       // Mark notification as sent to avoid spamming
       await db.collection("settings").doc("campaign").update({ endNotificationSent: true });
 
+      // Save final campaign stats snapshot for dashboard
+      const logsSnapFinal = await db.collection("email_logs").get();
+      const allLogsFinal = logsSnapFinal.docs.map(d => d.data());
+      const errorsFinal = allLogsFinal.filter(l => l.success === false).length;
+      const blacklistFinal = (await db.collection("blacklist").get()).size;
+      await db.collection("settings").doc("lastCampaign").set({
+        totalContacts: totalAll,
+        sentCount,
+        handoffCount,
+        errorsTotal: errorsFinal,
+        blacklistCount: blacklistFinal,
+        successRate: totalAll > 0 ? Math.round((sentCount / totalAll) * 100) : 0,
+        finishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
       // Load SMTP config
       const smtpDoc = await db.collection("settings").doc("smtp").get();
       if (!smtpDoc.exists) return;
@@ -900,6 +915,10 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     ? Math.min(50, Math.max(1, Number((smtpDoc.data() as any).dailyLimit)))
     : DAILY_LIMIT;
 
+  // Load last campaign snapshot
+  const lastCampaignDoc = await db.collection("settings").doc("lastCampaign").get();
+  const lastCampaign = lastCampaignDoc.exists ? lastCampaignDoc.data() : null;
+
   return {
     sentToday,
     remainingContacts,
@@ -909,6 +928,7 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     automationQueue,
     handoffWaiting,
     campaignActive,
+    lastCampaign,
   };
 });
 
