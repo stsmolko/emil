@@ -224,16 +224,14 @@ const getRandomGreeting = (greetings: string[]): string => {
   if (!greetings || greetings.length === 0) {
     return "";
   }
-  const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-  return parseSpintax(randomGreeting);
+  return greetings[Math.floor(Math.random() * greetings.length)];
 };
 
 const getRandomClosing = (closings: string[]): string => {
   if (!closings || closings.length === 0) {
     return "";
   }
-  const randomClosing = closings[Math.floor(Math.random() * closings.length)];
-  return parseSpintax(randomClosing);
+  return closings[Math.floor(Math.random() * closings.length)];
 };
 
 const getRandomDevice = (devices: string[]): string => {
@@ -241,7 +239,7 @@ const getRandomDevice = (devices: string[]): string => {
     return "";
   }
   const randomDevice = devices[Math.floor(Math.random() * devices.length)];
-  return parseSpintax(randomDevice);
+  return randomDevice;
 };
 
 const getRandomSubject = async (): Promise<string> => {
@@ -662,10 +660,7 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
     let emailBody = emailSettings.data()?.emailBody ||
       `{{greeting}}\n\nMáme pre teba špeciálnu ponuku.\n\nS pozdravom,\nTím`;
 
-    // Apply spintax to email body
-    emailBody = parseSpintax(emailBody);
-
-    // Replace template variables
+    // Replace template variables BEFORE spintax so {{name}} isn't consumed by the parser
     const now = new Date();
     const skDays = ["nedeľa","pondelok","utorok","streda","štvrtok","piatok","sobota"];
     const skMonths = ["januára","februára","marca","apríla","mája","júna","júla","augusta","septembra","októbra","novembra","decembra"];
@@ -693,6 +688,21 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
       subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
     }
 
+    // Apply spintax AFTER variable replacement (for body)
+    emailBody = parseSpintax(emailBody);
+
+    // Apply variables + spintax to greeting, closing, device, optOut in correct order
+    const applyToPartScheduler = (text: string): string => {
+      let result = text;
+      for (const [key, value] of Object.entries(replacements)) {
+        result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+      }
+      return parseSpintax(result);
+    };
+    const greetingFinal = applyToPartScheduler(greeting);
+    const closingFinal = applyToPartScheduler(closing);
+    const deviceFinal = applyToPartScheduler(device);
+
     // Backend poistka — HARD vulgárne slová nesmú nikdy odísť
     const vulgarInSubject = containsHardVulgar(subject);
     const vulgarInBody = containsHardVulgar(emailBody);
@@ -710,14 +720,16 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
 
     // Auto-prepend greeting and auto-append closing + device (device can be empty = no signature)
     // Each part is trimmed so trailing newlines in textarea fields don't create empty space
-    const optOut: string = emailSettings.data()?.optOut || "";
+    const optOutRaw: string = emailSettings.data()?.optOut || "";
+    const optOutEnabled: boolean = emailSettings.data()?.optOutEnabled !== false;
+    const optOut = applyToPartScheduler(optOutRaw);
 
     const parts = [
-      ...(greeting.trim() ? [greeting.trim()] : []),
+      ...(greetingFinal.trim() ? [greetingFinal.trim()] : []),
       emailBody.trim(),
-      ...(optOut.trim() ? [optOut.trim()] : []),
-      ...(closing.trim() ? [closing.trim()] : []),
-      ...(device.trim() ? [device.trim()] : []),
+      ...(optOutEnabled && optOut.trim() ? [optOut.trim()] : []),
+      ...(closingFinal.trim() ? [closingFinal.trim()] : []),
+      ...(deviceFinal.trim() ? [deviceFinal.trim()] : []),
     ];
     const textBody = parts.join("\n\n");
 
@@ -1007,6 +1019,7 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
     devices: string[];
     emailBody: string;
     optOut?: string;
+    optOutEnabled?: boolean;
   };
 
   const now = new Date();
@@ -1030,11 +1043,12 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
   };
 
   const applyVars = (text: string) => {
-    let result = parseSpintax(text);
+    // Replace variables BEFORE spintax so {{name}} isn't consumed by the parser
+    let result = text;
     for (const [key, value] of Object.entries(testReplacements)) {
       result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
     }
-    return result;
+    return parseSpintax(result);
   };
 
   const subject = applyVars(
@@ -1045,11 +1059,12 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
   const device = applyVars(getRandomDevice(emailSettings.devices || []));
   const body = applyVars(emailSettings.emailBody || "");
   const optOut: string = applyVars(emailSettings.optOut || "");
+  const optOutEnabled: boolean = emailSettings.optOutEnabled !== false;
 
   const parts = [
     ...(greeting.trim() ? [greeting.trim()] : []),
     body.trim(),
-    ...(optOut.trim() ? [optOut.trim()] : []),
+    ...(optOutEnabled && optOut.trim() ? [optOut.trim()] : []),
     ...(closing.trim() ? [closing.trim()] : []),
     ...(device.trim() ? [device.trim()] : []),
   ];

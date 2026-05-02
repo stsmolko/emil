@@ -890,6 +890,11 @@ function renderContacts() {
                             class="px-2.5 py-1 text-xs font-medium rounded-lg border border-orange-300 text-orange-600 hover:bg-orange-50 transition">
                         🚫 Blokovať
                     </button>
+                    <button onclick="openEditContactModal('${id}', '${(contact.name || '').replace(/'/g, "\\'")}', '${contact.email}')"
+                            title="Upraviť kontakt"
+                            class="px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition">
+                        ✏️ Upraviť
+                    </button>
                     <button onclick="deleteContact('${id}')"
                             title="Odstrániť z fronty"
                             class="px-2.5 py-1 text-xs font-medium rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition">
@@ -1093,6 +1098,42 @@ window.deleteContact = async (contactId) => {
             console.error('Error deleting contact:', error);
             alert('Chyba pri mazaní kontaktu');
         }
+    }
+};
+
+let editContactCurrentId = null;
+
+window.openEditContactModal = (contactId, name, email) => {
+    editContactCurrentId = contactId;
+    document.getElementById('editContactName').value = name;
+    document.getElementById('editContactEmail').value = email;
+    document.getElementById('editContactModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('editContactName').focus(), 50);
+};
+
+window.closeEditContactModal = () => {
+    editContactCurrentId = null;
+    document.getElementById('editContactModal').classList.add('hidden');
+};
+
+window.saveEditContact = async () => {
+    if (!editContactCurrentId) return;
+    const name = document.getElementById('editContactName').value.trim();
+    const email = document.getElementById('editContactEmail').value.trim();
+    if (!name || !email) {
+        alert('Meno aj email sú povinné.');
+        return;
+    }
+    const saveBtn = document.querySelector('#editContactModal button[onclick="saveEditContact()"]');
+    if (saveBtn) { saveBtn.textContent = 'Ukladám…'; saveBtn.disabled = true; }
+    try {
+        await updateDoc(doc(db, 'contacts', editContactCurrentId), { name, email });
+        closeEditContactModal();
+    } catch (err) {
+        console.error('Error updating contact:', err);
+        alert('Chyba pri ukladaní: ' + err.message);
+    } finally {
+        if (saveBtn) { saveBtn.textContent = 'Uložiť'; saveBtn.disabled = false; }
     }
 };
 
@@ -1379,6 +1420,8 @@ async function loadSettings() {
             document.getElementById('emailOptOut').value = data.optOut !== undefined
                 ? data.optOut
                 : 'P.S. {Ak už o ďalšiu spoluprácu nemáte záujem|Ak o spoluprácu záujem nemáte|V prípade, že o ďalší kontakt nestojíte}, {stačí odpísať|jednoducho odpíšte|napíšte nám} „nie" a {vašu adresu|váš e-mail} {hneď|okamžite|automaticky} {vyradíme zo zoznamu|vymažeme z databázy|odstránime zo zoznamu}, {aby sme vás viac nerušili|a viac vás kontaktovať nebudeme|a nebudeme vás ďalej obťažovať}.';
+            const optOutToggle = document.getElementById('optOutEnabled');
+            if (optOutToggle) optOutToggle.checked = data.optOutEnabled !== false;
         }
         updateVariantCounter();
     } catch (error) {
@@ -1453,6 +1496,7 @@ smtpForm.addEventListener('submit', async (e) => {
     const devices = [...splitEntries(document.getElementById('emailDevice').value), ''];
     const emailBody = document.getElementById('emailBody').value;
     const optOut = document.getElementById('emailOptOut').value.trim();
+    const optOutEnabled = document.getElementById('optOutEnabled')?.checked !== false;
 
     if (!resendApiKey) {
         alert('⚠️ Zadajte Resend API kľúč!');
@@ -1541,7 +1585,8 @@ smtpForm.addEventListener('submit', async (e) => {
             closings,
             devices,
             emailBody,
-            optOut
+            optOut,
+            optOutEnabled
         });
         
         const saveBtn = document.getElementById('saveSettingsBtn');
@@ -2256,13 +2301,15 @@ function generatePreview() {
         sender: previewSender,
         domain: previewDomain,
     };
-    let resolvedBody = clientParseSpintax(body);
+    let resolvedBody = body;
     for (const [key, val] of Object.entries(previewVars)) {
         resolvedBody = resolvedBody.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
     }
+    resolvedBody = clientParseSpintax(resolvedBody);
     const closing = clientParseSpintax(getRandomItem(closings));
     const device = clientParseSpintax(getRandomItem([...devices, ''])).trim();
-    const optOut = clientParseSpintax(document.getElementById('emailOptOut').value.trim());
+    const optOutEnabled = document.getElementById('optOutEnabled')?.checked !== false;
+    const optOut = optOutEnabled ? clientParseSpintax(document.getElementById('emailOptOut').value.trim()) : '';
 
     const parts = [
         ...(greeting.trim() ? [greeting.trim()] : []),
@@ -2285,7 +2332,7 @@ function generatePreview() {
     const mainParts = [
         ...(greeting.trim() ? [greeting.trim()] : []),
         resolvedBody.trim(),
-        ...(optOut ? [optOut] : []),
+        ...(optOut && optOutEnabled ? [optOut] : []),
         ...(closing.trim() ? [closing.trim()] : []),
     ];
 
@@ -2484,10 +2531,16 @@ function renderBlacklist() {
             <td class="px-6 py-3 text-sm text-gray-600">${e.reason || '—'}</td>
             <td class="px-6 py-3 text-sm text-gray-500">${date}</td>
             <td class="px-6 py-3">
-                <button onclick="deleteBlacklistEntry('${e.id}')"
-                    class="text-red-500 hover:text-red-700 text-xs font-medium transition">
-                    Zmazať
-                </button>
+                <div class="flex items-center gap-2">
+                    <button onclick="openEditBlacklistModal('${e.id}', '${(e.value || '').replace(/'/g, "\\'")}')"
+                        class="text-gray-500 hover:text-indigo-600 text-xs font-medium transition">
+                        ✏️ Upraviť
+                    </button>
+                    <button onclick="deleteBlacklistEntry('${e.id}')"
+                        class="text-red-500 hover:text-red-700 text-xs font-medium transition">
+                        Zmazať
+                    </button>
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -2524,6 +2577,40 @@ window.deleteBlacklistEntry = async function(id) {
     } catch (err) {
         console.error('Delete blacklist error:', err);
         alert('Chyba pri mazaní záznamu.');
+    }
+};
+
+let editBlacklistCurrentId = null;
+
+window.openEditBlacklistModal = (id, value) => {
+    editBlacklistCurrentId = id;
+    document.getElementById('editBlacklistValue').value = value;
+    document.getElementById('editBlacklistModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('editBlacklistValue').focus(), 50);
+};
+
+window.closeEditBlacklistModal = () => {
+    editBlacklistCurrentId = null;
+    document.getElementById('editBlacklistModal').classList.add('hidden');
+};
+
+window.saveEditBlacklist = async () => {
+    if (!editBlacklistCurrentId) return;
+    const value = document.getElementById('editBlacklistValue').value.trim().toLowerCase();
+    if (!value) { alert('Hodnota nesmie byť prázdna.'); return; }
+    const saveBtn = document.querySelector('#editBlacklistModal button[onclick="saveEditBlacklist()"]');
+    if (saveBtn) { saveBtn.textContent = 'Ukladám…'; saveBtn.disabled = true; }
+    try {
+        await updateDoc(doc(db, 'blacklist', editBlacklistCurrentId), { value });
+        const entry = allBlacklistEntries.find(e => e.id === editBlacklistCurrentId);
+        if (entry) entry.value = value;
+        closeEditBlacklistModal();
+        renderBlacklist();
+    } catch (err) {
+        console.error('Edit blacklist error:', err);
+        alert('Chyba pri ukladaní: ' + err.message);
+    } finally {
+        if (saveBtn) { saveBtn.textContent = 'Uložiť'; saveBtn.disabled = false; }
     }
 };
 
