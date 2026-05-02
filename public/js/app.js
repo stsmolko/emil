@@ -1397,6 +1397,7 @@ async function loadSettings() {
             }
             document.getElementById('resendNotifyEmail').value = data.user || '';
             document.getElementById('dailyLimitInput').value = data.dailyLimit || 10;
+            document.getElementById('testNameInput').value = data.testName || '';
         }
 
         const imapDoc = smtpDoc.docs.find(doc => doc.id === 'imap');
@@ -1477,6 +1478,7 @@ document.getElementById('nastaveniaForm').addEventListener('submit', async (e) =
     const user = document.getElementById('resendNotifyEmail').value.trim();
     const resendReplyTo = document.getElementById('resendReplyTo')?.value?.trim() || '';
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
+    const testName = document.getElementById('testNameInput')?.value?.trim() || '';
     const imapHost = document.getElementById('imapHost').value.trim();
     const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
     const imapUser = document.getElementById('imapUser').value.trim();
@@ -1487,6 +1489,7 @@ document.getElementById('nastaveniaForm').addEventListener('submit', async (e) =
             resendApiKey,
             user,
             dailyLimit,
+            ...(testName ? { testName } : {}),
             ...(resendReplyTo ? { resendReplyTo } : {}),
         });
         if (imapHost && imapUser && imapPass) {
