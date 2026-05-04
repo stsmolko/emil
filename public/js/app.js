@@ -564,61 +564,77 @@ function updateDashboardQueueBanner(stats) {
 }
 
 async function loadDashboard() {
+    let stats = null;
     try {
-        const getDashboardStats = httpsCallable(functions, 'getDashboardStats');
-        const result = await getDashboardStats();
-        const stats = result.data;
-        
-        statRemaining.textContent = stats.remainingContacts;
-        statErrors.textContent = stats.errorsToday;
-        statTotal.textContent = stats.totalContacts;
-        if (statSentAll) statSentAll.textContent = (stats.totalContacts || 0) - (stats.remainingContacts || 0);
-        dailyLimit.textContent = stats.dailyLimit;
-
-        // Posledná kampaň — zobraz keď nie je aktívna kampaň a kontakty sú 0
-        const lc = stats.lastCampaign;
-        const lastCampaignEl = document.getElementById('lastCampaignBanner');
-        if (lastCampaignEl) {
-            if (!stats.campaignActive && stats.totalContacts === 0 && lc) {
-                const finAt = lc.finishedAt
-                    ? new Date(lc.finishedAt).toLocaleDateString('sk-SK')
-                    : '—';
-                lastCampaignEl.innerHTML = `
-                    <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-800 flex flex-wrap gap-x-6 gap-y-1 items-center">
-                        <span class="font-semibold">📋 Posledná kampaň (${finAt}):</span>
-                        <span>👥 Celkom: <strong>${lc.totalContacts}</strong></span>
-                        <span>📨 Odoslaných: <strong>${lc.sentCount}</strong></span>
-                        <span>📈 Úspešnosť: <strong>${lc.successRate}%</strong></span>
-                        <span>❌ Chyby: <strong>${lc.errorsTotal}</strong></span>
-                        <span>🚫 Blacklist: <strong>${lc.blacklistCount}</strong></span>
-                    </div>`;
-                lastCampaignEl.classList.remove('hidden');
-            } else {
-                lastCampaignEl.classList.add('hidden');
-            }
-        }
-
-        updateDashboardQueueBanner(stats);
-        
-        // Stav kampane: onSnapshot(settings/campaign) v subscribeCampaignStatus()
-        
-        // Load total emails sent
-        await loadTotalEmailsSent();
-
-        // Load success rate
-        await loadSuccessRate();
-        
-        // Load 7-day chart
-        await load7DayChart();
-
-        // Campaign ETA
-        updateCampaignEta(stats.remainingContacts, stats.dailyLimit);
-
-        // Scheduler health
-        await loadSchedulerHealth();
+        const getDashboardStatsFn = httpsCallable(functions, 'getDashboardStats');
+        const result = await getDashboardStatsFn();
+        stats = result.data;
     } catch (error) {
-        console.error('Error loading stats:', error);
+        console.error('getDashboardStats failed:', error);
     }
+
+    if (stats) {
+        try {
+            if (statRemaining) statRemaining.textContent = stats.remainingContacts;
+            if (statErrors) statErrors.textContent = stats.errorsToday;
+            if (statTotal) statTotal.textContent = stats.totalContacts;
+            if (statSentAll) statSentAll.textContent = (stats.totalContacts || 0) - (stats.remainingContacts || 0);
+            if (dailyLimit) dailyLimit.textContent = stats.dailyLimit;
+        } catch (e) { console.error('Stats display error:', e); }
+
+        try {
+            const lc = stats.lastCampaign;
+            const lastCampaignEl = document.getElementById('lastCampaignBanner');
+            if (lastCampaignEl) {
+                if (!stats.campaignActive && stats.totalContacts === 0 && lc) {
+                    const finAt = lc.finishedAt
+                        ? new Date(lc.finishedAt).toLocaleDateString('sk-SK')
+                        : '—';
+                    lastCampaignEl.innerHTML = `
+                        <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-800 flex flex-wrap gap-x-6 gap-y-1 items-center">
+                            <span class="font-semibold">📋 Posledná kampaň (${finAt}):</span>
+                            <span>👥 Celkom: <strong>${lc.totalContacts}</strong></span>
+                            <span>📨 Odoslaných: <strong>${lc.sentCount}</strong></span>
+                            <span>📈 Úspešnosť: <strong>${lc.successRate}%</strong></span>
+                            <span>❌ Chyby: <strong>${lc.errorsTotal}</strong></span>
+                            <span>🚫 Blacklist: <strong>${lc.blacklistCount}</strong></span>
+                        </div>`;
+                    lastCampaignEl.classList.remove('hidden');
+                } else {
+                    lastCampaignEl.classList.add('hidden');
+                }
+            }
+        } catch (e) { console.error('LastCampaign banner error:', e); }
+
+        try { updateDashboardQueueBanner(stats); } catch (e) { console.error('QueueBanner error:', e); }
+    }
+
+    // Tieto kroky bežia vždy — nezávisle od getDashboardStats
+    try { await loadTotalEmailsSent(); } catch (e) { console.error('loadTotalEmailsSent error:', e); }
+    try { await loadSuccessRate(); } catch (e) { console.error('loadSuccessRate error:', e); }
+    try { await load7DayChart(); } catch (e) { console.error('load7DayChart error:', e); }
+
+    // ETA a health — bežia vždy; ak stats zlyhali, načítaj priamo z Firestore
+    try {
+        let remaining = stats?.remainingContacts ?? null;
+        let limit = stats?.dailyLimit ?? 10;
+        if (remaining === null) {
+            // Fallback: spočítaj zostatok priamo z Firestore
+            const allContacts = await getDocs(collection(db, 'contacts'));
+            const sent = allContacts.docs.filter(d => d.data().sent === true).length;
+            remaining = allContacts.size - sent;
+            const smtpSnap = await getDoc(doc(db, 'settings', 'smtp'));
+            if (smtpSnap.exists()) {
+                const dl = smtpSnap.data().dailyLimit;
+                if (dl) limit = Math.min(50, Math.max(1, Number(dl)));
+            }
+            if (statRemaining) statRemaining.textContent = remaining;
+            if (statTotal) statTotal.textContent = allContacts.size;
+        }
+        updateCampaignEta(remaining, limit);
+    } catch (e) { console.error('updateCampaignEta error:', e); }
+
+    try { await loadSchedulerHealth(); } catch (e) { console.error('loadSchedulerHealth error:', e); }
 }
 
 async function loadSchedulerHealth() {
