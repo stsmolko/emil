@@ -1512,6 +1512,7 @@ smtpForm.addEventListener('submit', async (e) => {
     const user = document.getElementById('resendNotifyEmail').value.trim();
     const resendReplyTo = document.getElementById('resendReplyTo')?.value?.trim() || '';
     const dailyLimit = Math.min(50, Math.max(1, parseInt(document.getElementById('dailyLimitInput').value) || 10));
+    const testName = document.getElementById('testNameInput')?.value?.trim() || '';
     const imapHost = document.getElementById('imapHost').value.trim();
     const imapPort = parseInt(document.getElementById('imapPort').value) || 993;
     const imapUser = document.getElementById('imapUser').value.trim();
@@ -1593,8 +1594,9 @@ smtpForm.addEventListener('submit', async (e) => {
             resendApiKey,
             resendFrom,
             dailyLimit,
+            testName: testName || '',
             ...(resendReplyTo ? { resendReplyTo } : {}),
-        });
+        }, { merge: true });
 
         if (imapHost && imapUser && imapPass) {
             await setDoc(doc(db, 'settings', 'imap'), {

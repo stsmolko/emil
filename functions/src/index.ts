@@ -1050,7 +1050,7 @@ export const sendTestEmail = functions.https.onCall(async (data, context) => {
   const senderName = (smtp.resendFrom || "").replace(/<[^>]+>/, "").trim() || smtp.resendFrom || "";
   const senderDomain = (smtp.resendFrom || "").match(/@([^>]+)>/)?.[1] || "";
 
-  const testName = (smtp as any).testName?.trim() || "Ján Novák (test)";
+  const testName = ((smtp as any).testName || "").trim() || "Ján Novák (test)";
 
   const testReplacements: Record<string, string> = {
     name: testName,
