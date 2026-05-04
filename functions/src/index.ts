@@ -915,9 +915,25 @@ export const getDashboardStats = functions.https.onCall(async (data, context) =>
     ? Math.min(50, Math.max(1, Number((smtpDoc.data() as any).dailyLimit)))
     : DAILY_LIMIT;
 
-  // Load last campaign snapshot
-  const lastCampaignDoc = await db.collection("settings").doc("lastCampaign").get();
-  const lastCampaign = lastCampaignDoc.exists ? lastCampaignDoc.data() : null;
+  // Load last campaign snapshot — convert Timestamp to ms to avoid serialization issues
+  let lastCampaign = null;
+  try {
+    const lastCampaignDoc = await db.collection("settings").doc("lastCampaign").get();
+    if (lastCampaignDoc.exists) {
+      const d = lastCampaignDoc.data() as any;
+      lastCampaign = {
+        totalContacts: d.totalContacts || 0,
+        sentCount: d.sentCount || 0,
+        handoffCount: d.handoffCount || 0,
+        errorsTotal: d.errorsTotal || 0,
+        blacklistCount: d.blacklistCount || 0,
+        successRate: d.successRate || 0,
+        finishedAt: d.finishedAt ? d.finishedAt.toMillis() : null,
+      };
+    }
+  } catch (e) {
+    console.warn("Could not load lastCampaign:", e);
+  }
 
   return {
     sentToday,

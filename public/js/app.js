@@ -580,8 +580,8 @@ async function loadDashboard() {
         const lastCampaignEl = document.getElementById('lastCampaignBanner');
         if (lastCampaignEl) {
             if (!stats.campaignActive && stats.totalContacts === 0 && lc) {
-                const finAt = lc.finishedAt?._seconds
-                    ? new Date(lc.finishedAt._seconds * 1000).toLocaleDateString('sk-SK')
+                const finAt = lc.finishedAt
+                    ? new Date(lc.finishedAt).toLocaleDateString('sk-SK')
                     : '—';
                 lastCampaignEl.innerHTML = `
                     <div class="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-3 text-sm text-indigo-800 flex flex-wrap gap-x-6 gap-y-1 items-center">
@@ -671,7 +671,7 @@ function updateCampaignEta(remaining, dailyLimit) {
     const rem = parseInt(remaining) || 0;
     const lim = parseInt(dailyLimit) || 10;
     if (rem <= 0) {
-        el.innerHTML = '🏁 Všetky kontakty odoslané';
+        el.innerHTML = '—';
         return;
     }
 
