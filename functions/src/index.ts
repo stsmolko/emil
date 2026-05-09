@@ -418,8 +418,12 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
     if (remainingUnsent === 0 && !campaignData.endNotificationSent) {
       console.log("Campaign finished! Sending end notification.");
 
-      // Mark notification as sent to avoid spamming
-      await db.collection("settings").doc("campaign").update({ endNotificationSent: true });
+      // Zastav kampaň a označ notifikáciu ako odoslanú
+      await db.collection("settings").doc("campaign").update({
+        active: false,
+        endNotificationSent: true,
+        finishedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       // Save final campaign stats snapshot for dashboard
       const logsSnapFinal = await db.collection("email_logs").get();
@@ -999,11 +1003,17 @@ export const toggleCampaign = functions.https.onCall(async (data, context) => {
   const active = action === 'start';
   
   // Update campaign status
-  await db.collection("settings").doc("campaign").set({
+  const updateData: Record<string, any> = {
     active: active,
     lastModified: admin.firestore.FieldValue.serverTimestamp(),
     modifiedBy: context.auth.uid,
-  }, { merge: true });
+  };
+  // Reset completion flag when starting a new campaign so the end notification fires again
+  if (active) {
+    updateData.endNotificationSent = false;
+    updateData.startedAt = admin.firestore.FieldValue.serverTimestamp();
+  }
+  await db.collection("settings").doc("campaign").set(updateData, { merge: true });
 
   console.log(`Campaign ${active ? 'started' : 'stopped'} by user ${context.auth.uid}`);
 
@@ -1631,28 +1641,40 @@ export const checkInboundReplies = functions.pubsub.schedule("every 15 minutes")
     logger: false,
   });
 
+  // Načítaj už spracované UID správ z Firestore (aby sme nepracúvali tú istú správu 2x)
+  const processedRef = db.collection("settings").doc("imapProcessedUids");
+  const processedDoc = await processedRef.get();
+  const processedUids: number[] = processedDoc.exists ? ((processedDoc.data() as any).uids || []) : [];
+
   try {
     await client.connect();
     const lock = await client.getMailboxLock("INBOX");
 
     try {
-      // Hľadáme neprecítané emaily z posledných 24 hodín
+      // Hľadáme VŠETKY emaily z posledných 24 hodín — nie len neprečítané
+      // (prečítaný email v klientovi by inak unikol zachyteniu)
       const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const messages = await client.search({ seen: false, since });
+      const messages = await client.search({ since });
 
       if (!messages || messages.length === 0) {
-        console.log("checkInboundReplies: no new unseen messages");
+        console.log("checkInboundReplies: no messages in last 24h");
         return;
       }
 
-      console.log(`checkInboundReplies: found ${messages.length} unseen message(s)`);
+      // Filtruj len tie, ktoré sme ešte nespracúvali
+      const newMessages = messages.filter((uid: number) => !processedUids.includes(uid));
+      console.log(`checkInboundReplies: ${messages.length} message(s) found, ${newMessages.length} new`);
 
-      for await (const msg of client.fetch(messages, { envelope: true })) {
+      if (newMessages.length === 0) return;
+
+      const newlyProcessed: number[] = [];
+
+      for await (const msg of client.fetch(newMessages, { envelope: true })) {
         const fromAddr = msg.envelope?.from?.[0];
-        if (!fromAddr) continue;
+        if (!fromAddr) { newlyProcessed.push(msg.uid); continue; }
 
         const fromEmail = normalizeEmail(fromAddr.address || "");
-        if (!fromEmail) continue;
+        if (!fromEmail) { newlyProcessed.push(msg.uid); continue; }
 
         // Skontroluj či je odosielateľ v kontaktoch
         const contactSnap = await db.collection("contacts")
@@ -1661,18 +1683,24 @@ export const checkInboundReplies = functions.pubsub.schedule("every 15 minutes")
         if (!contactSnap.empty) {
           const contact = contactSnap.docs[0];
           const data = contact.data();
-          // Označ len ak ešte nie je handoff
           if (!data.handoff) {
             await contact.ref.update({
               handoff: true,
               handoffAt: admin.firestore.FieldValue.serverTimestamp(),
             });
             console.log(`checkInboundReplies: ${fromEmail} → handoff`);
+          } else {
+            console.log(`checkInboundReplies: ${fromEmail} already handoff, skipping`);
           }
         }
 
-        // Označ správu ako prečítanú aby sme ju nespracúvali znova
-        await client.messageFlagsAdd(msg.uid, ["\\Seen"], { uid: true });
+        newlyProcessed.push(msg.uid);
+      }
+
+      // Ulož spracované UID do Firestore — zachovaj len posledných 500 (ochrana pred rastom)
+      if (newlyProcessed.length > 0) {
+        const allProcessed = [...processedUids, ...newlyProcessed].slice(-500);
+        await processedRef.set({ uids: allProcessed, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
       }
     } finally {
       lock.release();
