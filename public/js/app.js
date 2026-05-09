@@ -418,6 +418,90 @@ let lastWatchdogData = [];
 let watchdogSortKey = null;
 let watchdogSortAsc = false;
 
+// Graf kampane — globálny stav
+let chartAllDays = [];       // všetky dni od začiatku kampane
+let chartAllActivity = {};   // { 'YYYY-MM-DD': count }
+let chartOffset = 0;         // index prvého zobrazeného dňa
+const CHART_WINDOW = 30;     // počet dní v okne
+
+function renderChartWindow() {
+    const chartEl = document.getElementById('rep30DayChart');
+    const yAxisEl = document.getElementById('rep30DayYAxis');
+    const rangeEl = document.getElementById('repChartRange');
+    const prevBtn = document.getElementById('repChartPrev');
+    const nextBtn = document.getElementById('repChartNext');
+    if (!chartEl) return;
+
+    chartEl.innerHTML = '';
+    if (yAxisEl) yAxisEl.innerHTML = '';
+
+    const windowDays = chartAllDays.slice(chartOffset, chartOffset + CHART_WINDOW);
+    if (windowDays.length === 0) return;
+
+    // Navigačné tlačidlá
+    if (prevBtn) prevBtn.disabled = chartOffset <= 0;
+    if (nextBtn) nextBtn.disabled = chartOffset + CHART_WINDOW >= chartAllDays.length;
+
+    // Rozsah dátumov v hlavičke
+    if (rangeEl && windowDays.length > 0) {
+        const fmt = d => { const dt = new Date(d + 'T00:00:00Z'); return `${dt.getUTCDate()}.${dt.getUTCMonth()+1}.`; };
+        rangeEl.textContent = `${fmt(windowDays[0])} – ${fmt(windowDays[windowDays.length-1])}`;
+    }
+
+    // Škála Y
+    const dataMax = Math.max(...windowDays.map(d => chartAllActivity[d] || 0), 1);
+    const yMax = Math.max(dataMax, 15);
+
+    if (yAxisEl) {
+        [0, Math.round(yMax * 0.25), Math.round(yMax * 0.5), Math.round(yMax * 0.75), yMax].forEach(tick => {
+            const t = document.createElement('div');
+            t.textContent = tick;
+            yAxisEl.appendChild(t);
+        });
+    }
+
+    // Labely každý deň (≤30 dní vždy)
+    windowDays.forEach((d, idx) => {
+        const val = chartAllActivity[d] || 0;
+        const heightPct = Math.max((val / yMax) * 100, val > 0 ? 6 : 1);
+        const date = new Date(d + 'T00:00:00Z');
+        const showLabel = idx % 2 === 0;
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;height:100%;';
+
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = 'width:100%;display:flex;align-items:flex-end;justify-content:center;flex:1;';
+
+        const bar = document.createElement('div');
+        bar.style.cssText = `width:100%;border-radius:2px 2px 0 0;transition:height 0.3s;display:flex;align-items:center;justify-content:center;height:${heightPct}%;background:${val > 0 ? '#6366f1' : '#e5e7eb'};`;
+        bar.title = `${d}: ${val} emailov`;
+
+        if (val > 0) {
+            const num = document.createElement('span');
+            num.style.cssText = 'font-size:11px;font-weight:700;color:#fff;line-height:1;';
+            num.textContent = val;
+            bar.appendChild(num);
+        }
+
+        barWrap.appendChild(bar);
+
+        const lbl = document.createElement('div');
+        lbl.style.cssText = `font-size:9px;color:#9ca3af;text-align:center;margin-top:3px;line-height:1;white-space:nowrap;visibility:${showLabel ? 'visible' : 'hidden'};`;
+        lbl.textContent = `${date.getUTCDate()}.${date.getUTCMonth() + 1}`;
+
+        wrapper.appendChild(barWrap);
+        wrapper.appendChild(lbl);
+        chartEl.appendChild(wrapper);
+    });
+}
+
+function shiftChart(direction) {
+    const newOffset = chartOffset + direction * CHART_WINDOW;
+    chartOffset = Math.max(0, Math.min(newOffset, Math.max(0, chartAllDays.length - CHART_WINDOW)));
+    renderChartWindow();
+}
+
 async function loadReporting() {
     try {
         const getReportingStats = httpsCallable(functions, 'getReportingStats');
@@ -445,36 +529,21 @@ async function loadReporting() {
         document.getElementById('repBlComplaint').textContent = s.blacklist.complaint;
         document.getElementById('repBlManual').textContent = s.blacklist.manual;
 
-        // 30-day chart
-        const chartEl = document.getElementById('rep30DayChart');
-        const labelsEl = document.getElementById('rep30DayLabels');
-        chartEl.innerHTML = '';
-        labelsEl.innerHTML = '';
-        const days = [];
-        for (let i = 29; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            days.push(d.toISOString().slice(0, 10));
+        // Posúvateľný graf kampane
+        const allActivityDates = Object.keys(s.dailyActivity || {}).filter(d => s.dailyActivity[d] > 0).sort();
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const earliest = allActivityDates.length > 0 ? allActivityDates[0] : todayStr;
+        const startDate = new Date(earliest + 'T00:00:00Z');
+        startDate.setUTCDate(startDate.getUTCDate() - 1);
+        chartAllDays = [];
+        const cursor = new Date(startDate);
+        while (cursor.toISOString().slice(0, 10) <= todayStr) {
+            chartAllDays.push(cursor.toISOString().slice(0, 10));
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
-        const maxVal = Math.max(...days.map(d => s.dailyActivity[d] || 0), 1);
-        days.forEach((d, idx) => {
-            const val = s.dailyActivity[d] || 0;
-            const heightPct = Math.round((val / maxVal) * 100);
-            const bar = document.createElement('div');
-            bar.className = 'flex-1 rounded-t transition-all';
-            bar.style.height = heightPct + '%';
-            bar.style.minHeight = val > 0 ? '4px' : '2px';
-            bar.style.backgroundColor = val > 0 ? '#6366f1' : '#e5e7eb';
-            bar.title = `${d}: ${val} emailov`;
-            chartEl.appendChild(bar);
-
-            // Label každý 5. deň
-            const lbl = document.createElement('div');
-            lbl.className = 'flex-1 text-center overflow-hidden';
-            lbl.style.fontSize = '9px';
-            lbl.textContent = (idx % 5 === 0) ? d.slice(5) : '';
-            labelsEl.appendChild(lbl);
-        });
+        chartAllActivity = s.dailyActivity || {};
+        chartOffset = Math.max(0, chartAllDays.length - CHART_WINDOW);
+        renderChartWindow();
 
         // Reputation Watchdog table
         lastWatchdogData = s.subjects || [];
