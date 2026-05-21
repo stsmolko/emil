@@ -1360,9 +1360,17 @@ importBtn.addEventListener('click', async () => {
         csvPreviewData = [];
         let skippedToxic = 0, skippedDupe = 0, skippedInvalid = 0;
 
+        // Auto-detekcia oddeľovača: ak hlavička obsahuje ";" použij ";", inak ","
+        const sep = lines[0] && lines[0].includes(';') ? ';' : ',';
+
         for (let i = 1; i < lines.length; i++) {
-            const parts = lines[i].split(',').map(s => s.trim());
-            const name = parts[0], email = parts[1];
+            // Rozdeľ podľa oddeľovača — berieme posledné pole ako email, zvyšok ako meno
+            const raw = lines[i].trim();
+            const lastSepIdx = raw.lastIndexOf(sep);
+            if (lastSepIdx === -1) { skippedInvalid++; continue; }
+            const name = raw.slice(0, lastSepIdx).trim().replace(/^["']|["']$/g, '');
+            const email = raw.slice(lastSepIdx + 1).trim().replace(/^["']|["']$/g, '');
+            const parts = [name, email]; // pre kompatibilitu s kódom nižšie
             if (!email || !name) { skippedInvalid++; continue; }
             const emailNorm = normalizeEmail(email);
             if (isToxicDomain(emailNorm)) { skippedToxic++; continue; }
@@ -1425,18 +1433,30 @@ async function doImport() {
     const btn = document.getElementById('csvPreviewConfirmBtn');
     btn.disabled = true;
     try {
-        for (const c of csvPreviewData) {
-            await addDoc(collection(db, 'contacts'), {
-                email: c.email, name: c.name,
-                sent: false, createdAt: serverTimestamp()
-            });
+        const BATCH_SIZE = 490; // Firestore limit je 500 operácií na batch
+        const total = csvPreviewData.length;
+        let imported = 0;
+
+        for (let i = 0; i < total; i += BATCH_SIZE) {
+            const chunk = csvPreviewData.slice(i, i + BATCH_SIZE);
+            const batch = writeBatch(db);
+            for (const c of chunk) {
+                const ref = doc(collection(db, 'contacts'));
+                batch.set(ref, {
+                    email: c.email, name: c.name,
+                    sent: false, createdAt: serverTimestamp()
+                });
+            }
+            await batch.commit();
+            imported += chunk.length;
         }
-        // New contacts added — reset end-notification so it fires when this batch finishes
+
+        // Reset end-notification so it fires when this batch finishes
         try {
             await updateDoc(doc(db, 'settings', 'campaign'), { endNotificationSent: false });
         } catch (_) { /* field may not exist yet, that's fine */ }
 
-        alert(`✅ Importovaných ${csvPreviewData.length} kontaktov.`);
+        alert(`✅ Importovaných ${imported} kontaktov.`);
     } catch (err) {
         console.error('Import error:', err);
         alert('Chyba pri importe.');
