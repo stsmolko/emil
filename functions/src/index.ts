@@ -77,6 +77,9 @@ interface SendMailOptions {
 }
 
 const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<string | null> => {
+  if (!options.subject || !options.subject.trim()) {
+    throw new Error("Odoslanie zablokované: predmet emailu je prázdny.");
+  }
   if (smtp.provider === "resend") {
     if (!smtp.resendApiKey) throw new Error("Resend API kľúč nie je nastavený");
     const resend = new Resend(smtp.resendApiKey);
@@ -242,19 +245,22 @@ const getRandomDevice = (devices: string[]): string => {
   return randomDevice;
 };
 
-const getRandomSubject = async (): Promise<string> => {
+const getRandomSubjectRaw = async (): Promise<string> => {
   try {
     const settingsDoc = await db.collection("settings").doc("email").get();
-    
+
     if (!settingsDoc.exists || !settingsDoc.data()?.subjects || settingsDoc.data()?.subjects.length === 0) {
       throw new Error("Predmety emailov nie sú nastavené. Prosím, nastavte ich v sekcii Správa.");
     }
-    
-    const subjects = settingsDoc.data()!.subjects;
-    const randomSubject = subjects[Math.floor(Math.random() * subjects.length)];
-    
-    // Apply spintax parsing to create variations
-    return parseSpintax(randomSubject);
+
+    const allSubjects: string[] = settingsDoc.data()!.subjects;
+    const subjects = allSubjects.filter((s: string) => s && s.trim().length > 0);
+
+    if (subjects.length === 0) {
+      throw new Error("Predmety emailov nie sú nastavené alebo sú prázdne. Prosím, nastavte ich v sekcii Správa.");
+    }
+
+    return subjects[Math.floor(Math.random() * subjects.length)];
   } catch (error) {
     console.error("Error fetching subjects:", error);
     throw error;
@@ -667,7 +673,7 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
   await new Promise((resolve) => setTimeout(resolve, delay));
 
   try {
-    let subject = await getRandomSubject();
+    let subject = await getRandomSubjectRaw();
     const emailSettings = await db.collection("settings").doc("email").get();
     const greetings: string[] = emailSettings.data()?.greetings || [];
     const greeting = getRandomGreeting(greetings);
@@ -707,8 +713,19 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
       subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
     }
 
-    // Apply spintax AFTER variable replacement (for body)
+    // Apply spintax AFTER variable replacement (consistent order for both subject and body)
+    subject = parseSpintax(subject).trim();
     emailBody = parseSpintax(emailBody);
+
+    if (!subject) {
+      console.error("Predmet emailu je prázdny po spintaxe a nahradení premenných. Skontrolujte šablóny predmetov.");
+      await updateStats(false, "Prázdny predmet — email sa neodošle", {
+        event: "error",
+        contactName: contactData.name,
+        contactEmail: contactData.email,
+      });
+      return;
+    }
 
     // Apply variables + spintax to greeting, closing, device, optOut in correct order
     const applyToPartScheduler = (text: string): string => {
