@@ -77,7 +77,9 @@ interface SendMailOptions {
 }
 
 const sendMail = async (smtp: SmtpSettings, options: SendMailOptions): Promise<string | null> => {
+  console.log(`[SENDMAIL DEBUG] to="${options.to}" subject="${options.subject}" (len=${options.subject?.length})`);
   if (!options.subject || !options.subject.trim()) {
+    console.error(`[SENDMAIL DEBUG] BLOCKED — subject is empty/blank`);
     throw new Error("Odoslanie zablokované: predmet emailu je prázdny.");
   }
   if (smtp.provider === "resend") {
@@ -245,7 +247,7 @@ const getRandomDevice = (devices: string[]): string => {
   return randomDevice;
 };
 
-const getRandomSubjectRaw = async (): Promise<string> => {
+const getRandomSubjectRaw = async (): Promise<string[]> => {
   try {
     const settingsDoc = await db.collection("settings").doc("email").get();
 
@@ -260,7 +262,8 @@ const getRandomSubjectRaw = async (): Promise<string> => {
       throw new Error("Predmety emailov nie sú nastavené alebo sú prázdne. Prosím, nastavte ich v sekcii Správa.");
     }
 
-    return subjects[Math.floor(Math.random() * subjects.length)];
+    // Return shuffled copy so retry loop can try all subjects in random order
+    return [...subjects].sort(() => Math.random() - 0.5);
   } catch (error) {
     console.error("Error fetching subjects:", error);
     throw error;
@@ -673,7 +676,7 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
   await new Promise((resolve) => setTimeout(resolve, delay));
 
   try {
-    let subject = await getRandomSubjectRaw();
+    const subjectCandidates = await getRandomSubjectRaw();
     const emailSettings = await db.collection("settings").doc("email").get();
     const greetings: string[] = emailSettings.data()?.greetings || [];
     const greeting = getRandomGreeting(greetings);
@@ -708,18 +711,30 @@ export const mailScheduler = functions.runWith({ timeoutSeconds: 300, memory: "2
       domain: senderDomain,
     };
 
-    for (const [key, value] of Object.entries(replacements)) {
-      emailBody = emailBody.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
-      subject = subject.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+    // Try each subject candidate until one produces a non-empty result
+    let subject = "";
+    for (const candidate of subjectCandidates) {
+      let s = candidate;
+      for (const [key, value] of Object.entries(replacements)) {
+        s = s.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+      }
+      s = parseSpintax(s).trim();
+      console.log(`[SUBJECT DEBUG] candidate "${candidate}" → resolved: "${s}"`);
+      if (s) {
+        subject = s;
+        break;
+      }
+      console.warn(`[SUBJECT DEBUG] candidate "${candidate}" resolved to empty, trying next`);
     }
 
-    // Apply spintax AFTER variable replacement (consistent order for both subject and body)
-    subject = parseSpintax(subject).trim();
+    for (const [key, value] of Object.entries(replacements)) {
+      emailBody = emailBody.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+    }
     emailBody = parseSpintax(emailBody);
 
     if (!subject) {
-      console.error("Predmet emailu je prázdny po spintaxe a nahradení premenných. Skontrolujte šablóny predmetov.");
-      await updateStats(false, "Prázdny predmet — email sa neodošle", {
+      console.error("[SUBJECT DEBUG] BLOCKED — všetky predmety vygenerovali prázdny reťazec.");
+      await updateStats(false, "Prázdny predmet — žiadny kandidát nevygeneroval platný predmet", {
         event: "error",
         contactName: contactData.name,
         contactEmail: contactData.email,
