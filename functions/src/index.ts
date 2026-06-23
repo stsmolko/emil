@@ -1440,7 +1440,9 @@ export const getReportingStats = functions.https.onCall(async (data, context) =>
     else if (d.deliveryStatus === "complained") complaint++;
     else if ((d.softBounceCount || 0) > 0) softBounce++;
 
-    // Per subject stats
+    // Per subject stats — skip contacts that were administratively skipped
+    // (invalid email, MX fail, blacklist) — they have sent=true + error but no deliveryStatus
+    if (d.error && !d.deliveryStatus) return;
     const subj: string = d.subject || "(bez predmetu)";
     if (!subjectMap[subj]) subjectMap[subj] = { sent: 0, delivered: 0, bounced: 0, handoff: 0 };
     subjectMap[subj].sent++;
